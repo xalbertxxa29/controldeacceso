@@ -9,12 +9,12 @@ admin.initializeApp();
  * Se llama desde JavaScript del cliente sin problemas de CORS
  */
 exports.buscarDNI = functions.https.onCall(async (data, context) => {
-  console.log('>>> INICIO BUSCAR DNI (Modern Fetch Mode) <<<');
+  console.log('>>> INICIO BUSCAR DNI (Production Mode) <<<');
 
   try {
     // 1. Validar DNI
     const { dni } = data;
-    if (!dni || dni.length !== 8) {
+    if (!dni || dni.length !== 8 || !/^\d+$/.test(dni)) {
       console.warn('!!! DNI inválido recibido:', dni);
       throw new functions.https.HttpsError('invalid-argument', 'El DNI debe tener 8 dígitos numéricos.');
     }
@@ -27,7 +27,7 @@ exports.buscarDNI = functions.https.onCall(async (data, context) => {
     }
 
     const apiUrl = `https://api.decolecta.com/v1/reniec/dni?numero=${dni}`;
-    console.log(`Consultando: ${apiUrl}`);
+    console.log(`Consultando API DeColecta: ${apiUrl}`);
 
     // 3. Consulta vía Fetch (Node 20+)
     const response = await fetch(apiUrl, {
@@ -69,27 +69,29 @@ exports.buscarDNI = functions.https.onCall(async (data, context) => {
       throw new functions.https.HttpsError('not-found', 'No se encontraron datos para el DNI proporcionado.');
     }
 
+    // Devolver datos listos para el frontend
     const nombre = `${resJson.first_name} ${resJson.first_last_name || ''} ${resJson.second_last_name || ''}`.trim();
     console.log('Nombre obtenido:', nombre);
 
     return {
       success: true,
-      data: { nombre, ...resJson }
+      data: {
+        nombre,
+        ...resJson
+      }
     };
 
   } catch (error) {
     console.error('Error en buscarDNI:', error);
 
-    // Intento de loggear a Firestore para ver el error sin CLI logs
+    // Registro de diagnóstico en Firestore para el usuario
     try {
       await admin.firestore().collection('debug_logs').add({
         function: 'buscarDNI',
         timestamp: admin.firestore.FieldValue.serverTimestamp(),
         message: error.message || 'Sin mensaje',
         code: error.code || 'Sin código',
-        stack: error.stack || 'Sin stack',
-        details: error.details || null,
-        raw: JSON.stringify(error, Object.getOwnPropertyNames(error))
+        error_name: error.name || 'UnknownError'
       });
     } catch (logError) {
       console.error('No se pudo guardar el log en Firestore:', logError);
@@ -98,7 +100,11 @@ exports.buscarDNI = functions.https.onCall(async (data, context) => {
     // Si ya es un HttpsError de Firebase, relanzarlo
     if (error instanceof functions.https.HttpsError) throw error;
 
-    // Manejar errores de Fetch (timeout/red)
+    // DETECTAR FALLO DE PLAN BLAZE (Peticiones externas bloqueadas)
+    if (error.name === 'TypeError' && error.message.includes('fetch failed')) {
+      throw new functions.https.HttpsError('failed-precondition', 'Error de conexión externa. Por favor, asegúrese de que su proyecto Firebase tenga activado el PLAN BLAZE (pago por uso) para permitir consultas fuera de Google.');
+    }
+
     if (error.name === 'TimeoutError') {
       throw new functions.https.HttpsError('deadline-exceeded', 'La consulta a RENIEC tardó demasiado. Reintente en un momento.');
     }

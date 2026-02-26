@@ -404,30 +404,18 @@ btnBuscarDNI.addEventListener('click', async () => {
         updateTrafficLight('green');
 
       } else {
-        // NO ENCONTRADO -> LLAMAR A RENIEC (Vía Proxy de Vite)
-        console.log('No encontrado en historial. Consultando RENIEC...');
+        // NO ENCONTRADO EN HISTORIAL -> LLAMAR A RENIEC (Vía Cloud Function SEGURA para Producción)
+        console.log('No encontrado en historial. Consultando RENIEC vía Cloud Function...');
 
-        const response = await fetch(`/api/v1/reniec/dni?numero=${dni}`, {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer sk_13286.LuIyPsunop5MnmBCLhcxoRCCA7StWWZQ' // Token
-          }
-        });
+        const buscarDNI = httpsCallable(functions, 'buscarDNI');
+        const result = await buscarDNI({ dni });
 
-        if (!response.ok) {
-          throw new Error('No se pudo validar el DNI con RENIEC.');
+        if (!result.data.success) {
+          throw new Error(result.data.message || 'No se pudo validar el DNI con RENIEC.');
         }
 
-        const data = await response.json();
-
-        // El formato de DeColecta requiere concatenar los nombres
-        if (!data.first_name) {
-          throw new Error('No se encontraron datos para el DNI proporcionado.');
-        }
-
-        const nombreCompleto = `${data.first_name} ${data.first_last_name || ''} ${data.second_last_name || ''}`.trim();
-        nombreCompletoInput.value = nombreCompleto;
+        const dataRes = result.data.data;
+        nombreCompletoInput.value = dataRes.nombre;
 
         showNotification('DNI válido. Datos obtenidos de RENIEC.', 'success');
         updateTrafficLight('green');
