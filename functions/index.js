@@ -80,6 +80,21 @@ exports.buscarDNI = functions.https.onCall(async (data, context) => {
   } catch (error) {
     console.error('Error en buscarDNI:', error);
 
+    // Intento de loggear a Firestore para ver el error sin CLI logs
+    try {
+      await admin.firestore().collection('debug_logs').add({
+        function: 'buscarDNI',
+        timestamp: admin.firestore.FieldValue.serverTimestamp(),
+        message: error.message || 'Sin mensaje',
+        code: error.code || 'Sin código',
+        stack: error.stack || 'Sin stack',
+        details: error.details || null,
+        raw: JSON.stringify(error, Object.getOwnPropertyNames(error))
+      });
+    } catch (logError) {
+      console.error('No se pudo guardar el log en Firestore:', logError);
+    }
+
     // Si ya es un HttpsError de Firebase, relanzarlo
     if (error instanceof functions.https.HttpsError) throw error;
 

@@ -404,18 +404,30 @@ btnBuscarDNI.addEventListener('click', async () => {
         updateTrafficLight('green');
 
       } else {
-        // NO ENCONTRADO -> LLAMAR A RENIEC (Vía Cloud Function segura)
-        console.log('No encontrado en historial. Consultando RENIEC vía Cloud Function...');
+        // NO ENCONTRADO -> LLAMAR A RENIEC (Vía Proxy de Vite)
+        console.log('No encontrado en historial. Consultando RENIEC...');
 
-        const buscarDNI = httpsCallable(functions, 'buscarDNI');
-        const result = await buscarDNI({ dni });
+        const response = await fetch(`/api/v1/reniec/dni?numero=${dni}`, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer sk_13286.LuIyPsunop5MnmBCLhcxoRCCA7StWWZQ' // Token
+          }
+        });
 
-        if (!result.data.success) {
-          throw new Error(result.data.message || 'No se pudo validar el DNI con RENIEC.');
+        if (!response.ok) {
+          throw new Error('No se pudo validar el DNI con RENIEC.');
         }
 
-        const data = result.data.data;
-        nombreCompletoInput.value = data.nombre;
+        const data = await response.json();
+
+        // El formato de DeColecta requiere concatenar los nombres
+        if (!data.first_name) {
+          throw new Error('No se encontraron datos para el DNI proporcionado.');
+        }
+
+        const nombreCompleto = `${data.first_name} ${data.first_last_name || ''} ${data.second_last_name || ''}`.trim();
+        nombreCompletoInput.value = nombreCompleto;
 
         showNotification('DNI válido. Datos obtenidos de RENIEC.', 'success');
         updateTrafficLight('green');
@@ -441,20 +453,20 @@ btnBuscarDNI.addEventListener('click', async () => {
         throw new Error('No se encontró un ingreso ACTIVO para este DNI.');
       }
 
-      const doc = querySnapshot.docs[0];
-      const data = doc.data();
-      registroSalidaId = doc.id;
+      const docAccess = querySnapshot.docs[0];
+      const dataDoc = docAccess.data();
+      registroSalidaId = docAccess.id;
 
       // Rellenar campos
-      nombreCompletoInput.value = data.nombreCompleto;
-      document.getElementById('motivoIngreso').value = data.motivoIngreso || '';
-      document.getElementById('empresa').value = data.empresa || '';
-      document.getElementById('personaContacto').value = data.personaContacto || '';
-      document.getElementById('observaciones').value = data.observaciones || '';
-      document.getElementById('nroPase').value = data.nroPase || '';
+      nombreCompletoInput.value = dataDoc.nombreCompleto;
+      document.getElementById('motivoIngreso').value = dataDoc.motivoIngreso || '';
+      document.getElementById('empresa').value = dataDoc.empresa || '';
+      document.getElementById('personaContacto').value = dataDoc.personaContacto || '';
+      document.getElementById('observaciones').value = dataDoc.observaciones || '';
+      document.getElementById('nroPase').value = dataDoc.nroPase || '';
 
-      if (data.tipoPersona) {
-        const radio = document.querySelector(`input[name="tipoPersona"][value="${data.tipoPersona}"]`);
+      if (dataDoc.tipoPersona) {
+        const radio = document.querySelector(`input[name="tipoPersona"][value="${dataDoc.tipoPersona}"]`);
         if (radio) radio.checked = true;
       }
 
@@ -466,31 +478,15 @@ btnBuscarDNI.addEventListener('click', async () => {
     console.error('Error al buscar (Detalle):', error);
 
     let mensaje = 'Error al realizar la búsqueda.';
-
-    // Extraer mensaje de HttpsError de Firebase si existe
-    if (error.message && error.message !== 'internal' && error.message !== 'INTERNAL') {
+    if (error.message) {
       mensaje = error.message;
-    }
-
-    // Mapeo selectivo de códigos de error de Firebase Functions
-    const errorMessages = {
-      'functions/unauthenticated': 'Error de API Key: Verifique la configuración del servicio.',
-      'functions/not-found': 'DNI no encontrado en los registros de RENIEC.',
-      'functions/deadline-exceeded': 'Tiempo de espera agotado. Revise su conexión.',
-      'functions/internal': 'Error interno en el servidor o en el servicio RENIEC.'
-    };
-
-    if (errorMessages[error.code]) {
-      mensaje = errorMessages[error.code];
-    } else if (error.code === 'functions/failed-precondition') {
-      mensaje = 'Error de configuración: Faltan índices o permisos en la base de datos.';
     }
 
     showNotification(mensaje, 'error');
     updateTrafficLight('red');
     registroSalidaId = null;
 
-    // Limpiar campos en ingreso si hubo error real (no solo validación)
+    // Limpiar campos en ingreso si hubo error real
     if (typeof tipoAcceso !== 'undefined' && tipoAcceso === 'ingreso') {
       nombreCompletoInput.value = '';
     }
@@ -785,6 +781,7 @@ function inicializarListeners() {
     limit(50)
   );
 
+  showLoading();
   onSnapshot(q, (snapshot) => {
     registros = [];
     totalIngresos = 0;
@@ -807,6 +804,7 @@ function inicializarListeners() {
 
     actualizarTabla();
     actualizarEstadisticas();
+    hideLoading();
   });
 }
 
