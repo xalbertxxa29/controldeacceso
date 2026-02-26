@@ -463,28 +463,37 @@ btnBuscarDNI.addEventListener('click', async () => {
     }
 
   } catch (error) {
-    console.error('Error al buscar (Detalle):', {
-      message: error.message,
-      code: error.code,
-      details: error.details,
-      stack: error.stack
-    });
+    console.error('Error al buscar (Detalle):', error);
 
     let mensaje = 'Error al realizar la búsqueda.';
-    if (error.code === 'functions/failed-precondition') {
-      mensaje = 'Error de configuración: La API Key no está configurada en el servidor.';
-    } else if (error.message && error.message !== 'internal' && error.message !== 'INTERNAL') {
+
+    // Extraer mensaje de HttpsError de Firebase si existe
+    if (error.message && error.message !== 'internal' && error.message !== 'INTERNAL') {
       mensaje = error.message;
-    } else if (error.code === 'functions/internal') {
-      mensaje = 'Error interno (RENIEC). Revise logs en Firebase Console.';
+    }
+
+    // Mapeo selectivo de códigos de error de Firebase Functions
+    const errorMessages = {
+      'functions/unauthenticated': 'Error de API Key: Verifique la configuración del servicio.',
+      'functions/not-found': 'DNI no encontrado en los registros de RENIEC.',
+      'functions/deadline-exceeded': 'Tiempo de espera agotado. Revise su conexión.',
+      'functions/internal': 'Error interno en el servidor o en el servicio RENIEC.'
+    };
+
+    if (errorMessages[error.code]) {
+      mensaje = errorMessages[error.code];
+    } else if (error.code === 'functions/failed-precondition') {
+      mensaje = 'Error de configuración: Faltan índices o permisos en la base de datos.';
     }
 
     showNotification(mensaje, 'error');
     updateTrafficLight('red');
     registroSalidaId = null;
 
-    // Limpiar campos si falló
-    if (tipoAcceso === 'ingreso') nombreCompletoInput.value = '';
+    // Limpiar campos en ingreso si hubo error real (no solo validación)
+    if (typeof tipoAcceso !== 'undefined' && tipoAcceso === 'ingreso') {
+      nombreCompletoInput.value = '';
+    }
 
   } finally {
     // Rehabilitar botón y ocultar overlay
