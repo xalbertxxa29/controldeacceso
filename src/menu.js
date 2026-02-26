@@ -1,8 +1,7 @@
 import './style.css';
-import { auth, db, functions } from './firebase.js';
+import { auth, db } from './firebase.js';
 import { signOut } from 'firebase/auth';
 import { collection, addDoc, query, orderBy, limit, onSnapshot, serverTimestamp, where, getDocs, updateDoc, doc, Timestamp, getDoc } from 'firebase/firestore';
-import { httpsCallable } from 'firebase/functions';
 import { renderizarGraficos, actualizarTablaDashboard } from './charts.js';
 import * as XLSX from 'xlsx';
 
@@ -15,7 +14,7 @@ const userFullName = `${localStorage.getItem('userName') || ''} ${localStorage.g
 // Verificar autenticación
 auth.onAuthStateChanged(async (user) => {
   if (!user) {
-    window.location.href = './index.html';
+    window.location.href = '/index.html';
   } else {
     // AUTORECUPERACIÓN: Si hay usuario Auth pero faltan datos en LocalStorage (ej: sesión persistente anterior)
     if (!localStorage.getItem('userClient') || !localStorage.getItem('userUnit')) {
@@ -40,7 +39,7 @@ auth.onAuthStateChanged(async (user) => {
             console.error('Acceso denegado: Rol no autorizado.');
             await signOut(auth);
             localStorage.clear();
-            window.location.href = './index.html';
+            window.location.href = '/index.html';
             return;
           }
 
@@ -67,7 +66,7 @@ auth.onAuthStateChanged(async (user) => {
       console.warn('Rol no autorizado detectado:', userRole);
       await signOut(auth);
       localStorage.clear();
-      window.location.href = './index.html';
+      window.location.href = '/index.html';
       return;
     }
 
@@ -404,21 +403,21 @@ btnBuscarDNI.addEventListener('click', async () => {
         updateTrafficLight('green');
 
       } else {
-        // NO ENCONTRADO EN HISTORIAL -> LLAMAR A RENIEC (Vía Cloud Function SEGURA para Producción)
-        console.log('No encontrado en historial. Consultando RENIEC vía Cloud Function...');
+        // NO ENCONTRADO -> LLAMAR A RENIEC (VIA CLOUD FUNCTION)
+        console.log('No encontrado en historial. Consultando RENIEC vía Cloud Functions...');
 
-        const buscarDNI = httpsCallable(functions, 'buscarDNI');
-        const result = await buscarDNI({ dni });
+        const { functions, httpsCallable } = await import('./firebase.js');
+        const buscarDNICallable = httpsCallable(functions, 'buscarDNI');
 
-        if (!result.data.success) {
-          throw new Error(result.data.message || 'No se pudo validar el DNI con RENIEC.');
+        const result = await buscarDNICallable({ dni });
+
+        if (result.data && result.data.success) {
+          nombreCompletoInput.value = result.data.data.nombre;
+          showNotification('DNI válido. Datos obtenidos de RENIEC.', 'success');
+          updateTrafficLight('green');
+        } else {
+          throw new Error('DNI no encontrado o error en RENIEC.');
         }
-
-        const dataRes = result.data.data;
-        nombreCompletoInput.value = dataRes.nombre;
-
-        showNotification('DNI válido. Datos obtenidos de RENIEC.', 'success');
-        updateTrafficLight('green');
       }
 
     } else {
@@ -441,20 +440,20 @@ btnBuscarDNI.addEventListener('click', async () => {
         throw new Error('No se encontró un ingreso ACTIVO para este DNI.');
       }
 
-      const docAccess = querySnapshot.docs[0];
-      const dataDoc = docAccess.data();
-      registroSalidaId = docAccess.id;
+      const doc = querySnapshot.docs[0];
+      const data = doc.data();
+      registroSalidaId = doc.id;
 
       // Rellenar campos
-      nombreCompletoInput.value = dataDoc.nombreCompleto;
-      document.getElementById('motivoIngreso').value = dataDoc.motivoIngreso || '';
-      document.getElementById('empresa').value = dataDoc.empresa || '';
-      document.getElementById('personaContacto').value = dataDoc.personaContacto || '';
-      document.getElementById('observaciones').value = dataDoc.observaciones || '';
-      document.getElementById('nroPase').value = dataDoc.nroPase || '';
+      nombreCompletoInput.value = data.nombreCompleto;
+      document.getElementById('motivoIngreso').value = data.motivoIngreso || '';
+      document.getElementById('empresa').value = data.empresa || '';
+      document.getElementById('personaContacto').value = data.personaContacto || '';
+      document.getElementById('observaciones').value = data.observaciones || '';
+      document.getElementById('nroPase').value = data.nroPase || '';
 
-      if (dataDoc.tipoPersona) {
-        const radio = document.querySelector(`input[name="tipoPersona"][value="${dataDoc.tipoPersona}"]`);
+      if (data.tipoPersona) {
+        const radio = document.querySelector(`input[name="tipoPersona"][value="${data.tipoPersona}"]`);
         if (radio) radio.checked = true;
       }
 
@@ -463,21 +462,16 @@ btnBuscarDNI.addEventListener('click', async () => {
     }
 
   } catch (error) {
-    console.error('Error al buscar (Detalle):', error);
-
+    console.error('Error al buscar:', error);
     let mensaje = 'Error al realizar la búsqueda.';
-    if (error.message) {
-      mensaje = error.message;
-    }
+    if (error.message) mensaje = error.message;
 
     showNotification(mensaje, 'error');
     updateTrafficLight('red');
     registroSalidaId = null;
 
-    // Limpiar campos en ingreso si hubo error real
-    if (typeof tipoAcceso !== 'undefined' && tipoAcceso === 'ingreso') {
-      nombreCompletoInput.value = '';
-    }
+    // Limpiar campos si falló
+    if (tipoAcceso === 'ingreso') nombreCompletoInput.value = '';
 
   } finally {
     // Rehabilitar botón y ocultar overlay
@@ -769,7 +763,6 @@ function inicializarListeners() {
     limit(50)
   );
 
-  showLoading();
   onSnapshot(q, (snapshot) => {
     registros = [];
     totalIngresos = 0;
@@ -792,7 +785,6 @@ function inicializarListeners() {
 
     actualizarTabla();
     actualizarEstadisticas();
-    hideLoading();
   });
 }
 

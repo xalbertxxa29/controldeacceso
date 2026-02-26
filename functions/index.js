@@ -1,6 +1,5 @@
 const functions = require('firebase-functions');
 const admin = require('firebase-admin');
-const https = require('https');
 
 admin.initializeApp();
 
@@ -9,107 +8,113 @@ admin.initializeApp();
  * Se llama desde JavaScript del cliente sin problemas de CORS
  */
 exports.buscarDNI = functions.https.onCall(async (data, context) => {
-  console.log('>>> INICIO BUSCAR DNI (Production Mode) <<<');
-
   try {
-    // 1. Validar DNI
     const { dni } = data;
-    if (!dni || dni.length !== 8 || !/^\d+$/.test(dni)) {
-      console.warn('!!! DNI inválido recibido:', dni);
-      throw new functions.https.HttpsError('invalid-argument', 'El DNI debe tener 8 dígitos numéricos.');
+
+    console.log('=== buscarDNI CALLABLE ===');
+    console.log('DNI recibido:', dni);
+
+    // Validaciones
+    if (!dni) {
+      throw new functions.https.HttpsError(
+        'invalid-argument',
+        'DNI no proporcionado'
+      );
     }
 
-    // 2. Obtener API Key
-    let apiKey = process.env.DECOLECTA_API_KEY;
-    if (!apiKey) {
-      console.warn('DECOLECTA_API_KEY no encontrada en process.env. Usando fallback...');
-      apiKey = 'sk_13286.LuIyPsunop5MnmBCLhcxoRCCA7StWWZQ';
+    if (dni.length !== 8 || !/^\d+$/.test(dni)) {
+      throw new functions.https.HttpsError(
+        'invalid-argument',
+        'DNI inválido. Debe tener 8 dígitos'
+      );
     }
 
-    const apiUrl = `https://api.decolecta.com/v1/reniec/dni?numero=${dni}`;
-    console.log(`Consultando API DeColecta: ${apiUrl}`);
+    // Obtener API key (Hardcoded temporalmente para asegurar funcionamiento)
+    const apiKey = 'sk_13286.LuIyPsunop5MnmBCLhcxoRCCA7StWWZQ';
 
-    // 3. Consulta vía Fetch (Node 20+)
-    const response = await fetch(apiUrl, {
+    console.log(`Buscando DNI: ${dni}`);
+
+    // Llamar a la API de DeColecta
+    const url = `https://api.decolecta.com/v1/reniec/dni?numero=${dni}`;
+    console.log('URL:', url);
+
+    const response = await fetch(url, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${apiKey}`
-      },
-      signal: AbortSignal.timeout(10000) // Timeout de 10s
+      }
     });
 
-    const responseText = await response.text();
-    console.log('Status API:', response.status);
+    console.log('Response status:', response.status);
 
     if (!response.ok) {
-      console.error(`Error de API (${response.status}):`, responseText);
-
-      if (response.status === 401 || response.status === 403) {
-        throw new functions.https.HttpsError('unauthenticated', 'Error de autenticación con el servicio RENIEC. Verifique la API Key.');
-      }
+      const errorData = await response.json().catch(() => ({}));
+      console.error('Error DeColecta:', errorData);
 
       if (response.status === 404) {
-        throw new functions.https.HttpsError('not-found', 'DNI no encontrado en la base de datos de RENIEC.');
+        throw new functions.https.HttpsError(
+          'not-found',
+          'DNI no encontrado en RENIEC'
+        );
       }
 
-      throw new functions.https.HttpsError('internal', `Servicio RENIEC devolvió error ${response.status}: ${responseText}`);
+      if (response.status === 401 || response.status === 403) {
+        throw new functions.https.HttpsError(
+          'unauthenticated',
+          'Error de autenticación con DeColecta'
+        );
+      }
+
+      throw new functions.https.HttpsError(
+        'internal',
+        errorData.message || 'Error al consultar RENIEC'
+      );
     }
 
-    let resJson;
-    try {
-      resJson = JSON.parse(responseText);
-    } catch (e) {
-      console.error('Error al parsear respuesta JSON:', e);
-      throw new functions.https.HttpsError('internal', 'La respuesta del servicio RENIEC no es un JSON válido.');
+    const data_response = await response.json();
+    console.log('Datos recibidos:', data_response);
+
+    // Validar campos
+    if (!data_response.first_name || !data_response.first_last_name) {
+      throw new functions.https.HttpsError(
+        'invalid-argument',
+        'Datos incompletos en RENIEC'
+      );
     }
 
-    if (!resJson || !resJson.first_name) {
-      console.warn('Respuesta vacía o sin nombre:', resJson);
-      throw new functions.https.HttpsError('not-found', 'No se encontraron datos para el DNI proporcionado.');
-    }
-
-    // Devolver datos listos para el frontend
-    const nombre = `${resJson.first_name} ${resJson.first_last_name || ''} ${resJson.second_last_name || ''}`.trim();
-    console.log('Nombre obtenido:', nombre);
+    const nombreCompleto = `${data_response.first_name} ${data_response.first_last_name} ${data_response.second_last_name || ''}`.trim();
+    console.log('Nombre completo:', nombreCompleto);
 
     return {
       success: true,
       data: {
-        nombre,
-        ...resJson
+        nombre: nombreCompleto,
+        nombres: data_response.first_name,
+        primer_apellido: data_response.first_last_name,
+        segundo_apellido: data_response.second_last_name || '',
+        fecha_nacimiento: data_response.date_of_birth || null,
+        sexo: data_response.gender || null,
+        estado_civil: data_response.marital_status || null,
+        nacionalidad: data_response.nationality || null
       }
     };
 
   } catch (error) {
-    console.error('Error en buscarDNI:', error);
+    console.error('ERROR DETALLADO en buscarDNI:', {
+      message: error.message,
+      stack: error.stack,
+      code: error.code
+    });
 
-    // Registro de diagnóstico en Firestore para el usuario
-    try {
-      await admin.firestore().collection('debug_logs').add({
-        function: 'buscarDNI',
-        timestamp: admin.firestore.FieldValue.serverTimestamp(),
-        message: error.message || 'Sin mensaje',
-        code: error.code || 'Sin código',
-        error_name: error.name || 'UnknownError'
-      });
-    } catch (logError) {
-      console.error('No se pudo guardar el log en Firestore:', logError);
+    if (error instanceof functions.https.HttpsError) {
+      throw error;
     }
 
-    // Si ya es un HttpsError de Firebase, relanzarlo
-    if (error instanceof functions.https.HttpsError) throw error;
-
-    // DETECTAR FALLO DE PLAN BLAZE (Peticiones externas bloqueadas)
-    if (error.name === 'TypeError' && error.message.includes('fetch failed')) {
-      throw new functions.https.HttpsError('failed-precondition', 'Error de conexión externa. Por favor, asegúrese de que su proyecto Firebase tenga activado el PLAN BLAZE (pago por uso) para permitir consultas fuera de Google.');
-    }
-
-    if (error.name === 'TimeoutError') {
-      throw new functions.https.HttpsError('deadline-exceeded', 'La consulta a RENIEC tardó demasiado. Reintente en un momento.');
-    }
-
-    throw new functions.https.HttpsError('internal', error.message || 'Error inesperado al consultar RENIEC.');
+    throw new functions.https.HttpsError(
+      'internal',
+      `Error en Cloud Function: ${error.message}`
+    );
   }
 });
 
@@ -146,4 +151,3 @@ exports.obtenerRegistros = functions.https.onCall(async (data, context) => {
     );
   }
 });
-

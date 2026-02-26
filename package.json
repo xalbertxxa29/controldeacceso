@@ -19,7 +19,8 @@
   "devDependencies": {
     "electron": "^40.4.0",
     "electron-builder": "^26.7.0",
-    "vite": "^7.3.1"
+    "electron-packager": "^17.1.2",
+    "vite": "^6.0.11"
   },
   "build": {
     "appId": "com.liderman.controlacceso",
@@ -28,10 +29,7 @@
       "output": "release"
     },
     "win": {
-      "target": "nsis",
-      "icon": "imagenes/logo.ico",
-      "verifyUpdateCodeSignature": false,
-      "forceCodeSigning": false
+      "target": "dir"
     },
     "files": [
       "dist/**/*",
