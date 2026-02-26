@@ -1,0 +1,665 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Control de Acceso - Panel</title>
+    <link rel="stylesheet" href="./src/style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700;900&family=Rajdhani:wght@300;400;500;600;700&display=swap"
+        rel="stylesheet">
+</head>
+
+<body class="menu-page">
+    <div class="animated-background">
+        <div class="grid-overlay"></div>
+        <div class="floating-particles"></div>
+    </div>
+
+    <div class="main-container">
+        <!-- Sidebar Menu -->
+        <aside class="sidebar-menu" id="sidebarMenu">
+            <div class="sidebar-header">
+                <img src="imagenes/logo.png" alt="Logo" class="sidebar-logo">
+                <span class="sidebar-title">MENU</span>
+            </div>
+            <nav class="sidebar-nav">
+                <button class="nav-item active" data-target="view-registros">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                        <polyline points="14 2 14 8 20 8"></polyline>
+                        <line x1="16" y1="13" x2="8" y2="13"></line>
+                        <line x1="16" y1="17" x2="8" y2="17"></line>
+                        <polyline points="10 9 9 9 8 9"></polyline>
+                    </svg>
+                    <span>Registros</span>
+                </button>
+                <button class="nav-item" data-view="view-dashboard">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="3" y="3" width="7" height="7"></rect>
+                        <rect x="14" y="3" width="7" height="7"></rect>
+                        <rect x="14" y="14" width="7" height="7"></rect>
+                        <rect x="3" y="14" width="7" height="7"></rect>
+                    </svg>
+                    <span>Dashboard</span>
+                </button>
+                <button class="nav-item" data-view="view-management" id="nav-users" style="display: none;">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                        <circle cx="9" cy="7" r="4"></circle>
+                        <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                        <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                    </svg>
+                    <span>Usuarios</span>
+                </button>
+                <button class="nav-item" data-view="view-clients" id="nav-clients" style="display: none;">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M3 21h18"></path>
+                        <path d="M3 7v1a3 3 0 0 0 6 0V7m0 1a3 3 0 0 0 6 0V7m0 1a3 3 0 0 0 6 0V7H3z"></path>
+                        <path d="M9 17h1m-1-4h1m8 4h1m-1-4h1M3 7V4a1 1 0 0 1 1-1h16a1 1 0 0 1 1 1v3"></path>
+                    </svg>
+                    <span>Clientes</span>
+                </button>
+            </nav>
+        </aside>
+
+        <!-- Main Content Wrapper -->
+        <div class="main-content-area">
+            <!-- Header -->
+            <header class="main-header glass-effect">
+                <div class="header-left">
+                    <button class="menu-toggle" id="menuToggle">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <line x1="3" y1="12" x2="21" y2="12"></line>
+                            <line x1="3" y1="6" x2="21" y2="6"></line>
+                            <line x1="3" y1="18" x2="21" y2="18"></line>
+                        </svg>
+                    </button>
+                    <h1 class="header-title">CONTROL DE ACCESO</h1>
+
+                    <!-- Traffic Light Moved to Header -->
+                    <div class="traffic-light-header" id="trafficLightHeader">
+                        <div class="light red" title="No Autorizado / Error"></div>
+                        <div class="light yellow" title="Procesando"></div>
+                        <div class="light green active" title="Autorizado"></div>
+                    </div>
+
+                    <div id="connectionStatus" class="connection-status">
+                        <span class="status-dot online"></span> En Línea
+                    </div>
+                </div>
+                <div class="header-right">
+                    <div class="user-info">
+                        <span id="userName">Usuario</span>
+                    </div>
+                    <button class="btn-logout" id="btnLogout">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                            <polyline points="16 17 21 12 16 7"></polyline>
+                            <line x1="21" y1="12" x2="9" y2="12"></line>
+                        </svg>
+                        Salir
+                    </button>
+                </div>
+            </header>
+
+            <!-- Views Container -->
+            <div class="views-container">
+
+                <!-- VIEW 1: REGISTROS (Original) -->
+                <div id="view-registros" class="view-section active">
+                    <div class="content-wrapper">
+                        <!-- Control Panel -->
+                        <div class="control-panel glass-effect">
+                            <!-- Tipo de Acceso -->
+                            <div class="section">
+                                <h3 class="section-title">Tipo de Acceso</h3>
+                                <div class="radio-group">
+                                    <label class="radio-label">
+                                        <input type="radio" name="tipoAcceso" value="ingreso" checked>
+                                        <span class="radio-custom"></span>
+                                        <span class="radio-text">INGRESO</span>
+                                    </label>
+                                    <label class="radio-label">
+                                        <input type="radio" name="tipoAcceso" value="salida">
+                                        <span class="radio-custom"></span>
+                                        <span class="radio-text danger">SALIDA</span>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <!-- Tipo de Persona -->
+                            <div class="section">
+                                <h3 class="section-title">Tipo de Persona</h3>
+                                <div class="radio-group">
+                                    <label class="radio-label">
+                                        <input type="radio" name="tipoPersona" value="contratista" checked>
+                                        <span class="radio-custom"></span>
+                                        <span class="radio-text">CONTRATISTA</span>
+                                    </label>
+                                    <label class="radio-label">
+                                        <input type="radio" name="tipoPersona" value="cliente">
+                                        <span class="radio-custom"></span>
+                                        <span class="radio-text">CLIENTES</span>
+                                    </label>
+                                    <label class="radio-label">
+                                        <input type="radio" name="tipoPersona" value="visita">
+                                        <span class="radio-custom"></span>
+                                        <span class="radio-text">VISITA</span>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <!-- Documento de Identidad -->
+                            <div class="section">
+                                <h3 class="section-title">Documento de Identidad</h3>
+                                <div class="input-row">
+                                    <div class="input-group flex-grow">
+                                        <input type="text" id="dni" placeholder="Ingrese DNI" maxlength="8"
+                                            pattern="[0-9]{8}">
+                                        <div class="input-border"></div>
+                                    </div>
+                                    <button class="btn-search" id="btnBuscarDNI" title="Buscar DNI">
+                                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
+                                            stroke="currentColor" stroke-width="2">
+                                            <circle cx="11" cy="11" r="8"></circle>
+                                            <path d="m21 21-4.35-4.35"></path>
+                                        </svg>
+                                    </button>
+                                    <button class="btn-clean" id="btnLimpiar" title="Limpiar formulario">
+                                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none"
+                                            stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                            stroke-linejoin="round">
+                                            <path d="M3 6h18"></path>
+                                            <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
+                                            <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
+                                            <line x1="10" y1="11" x2="10" y2="17"></line>
+                                            <line x1="14" y1="11" x2="14" y2="17"></line>
+                                        </svg>
+                                    </button>
+                                </div>
+                                <div class="checkbox-group">
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" id="carnetExtranjeria">
+                                        <span class="checkbox-custom"></span>
+                                        <span class="checkbox-text">CARNET EXTRANJERÍA</span>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <!-- Nombre Completo -->
+                            <div class="section">
+                                <h3 class="section-title">Nombre Completo</h3>
+                                <div class="input-group">
+                                    <input type="text" id="nombreCompleto" placeholder="Nombres y Apellidos" readonly>
+                                    <div class="input-border"></div>
+                                </div>
+                            </div>
+
+                            <!-- Motivo de Ingreso -->
+                            <div class="section">
+                                <h3 class="section-title">Motivo de Ingreso</h3>
+                                <div class="input-group">
+                                    <input type="text" id="motivoIngreso" placeholder="Ingrese motivo">
+                                    <div class="input-border"></div>
+                                </div>
+                            </div>
+
+                            <!-- Empresa -->
+                            <div class="section">
+                                <h3 class="section-title">Empresa</h3>
+                                <div class="input-group">
+                                    <input type="text" id="empresa" placeholder="Nombre de la empresa">
+                                    <div class="input-border"></div>
+                                </div>
+                            </div>
+
+                            <!-- Persona de Contacto -->
+                            <div class="section">
+                                <h3 class="section-title">Persona de Contacto</h3>
+                                <div class="input-group">
+                                    <input type="text" id="personaContacto" placeholder="Nombre del contacto">
+                                    <div class="input-border"></div>
+                                </div>
+                            </div>
+
+                            <!-- Observaciones -->
+                            <div class="section">
+                                <h3 class="section-title">Observaciones</h3>
+                                <div class="input-group">
+                                    <textarea id="observaciones" placeholder="Observaciones adicionales"
+                                        rows="3"></textarea>
+                                    <div class="input-border"></div>
+                                </div>
+                            </div>
+
+                            <!-- Número de Pase -->
+                            <div class="section">
+                                <h3 class="section-title">Nro de Pase</h3>
+                                <div class="input-row">
+                                    <div class="input-group flex-grow">
+                                        <input type="text" id="nroPase" placeholder="Número de pase">
+                                        <div class="input-border"></div>
+                                    </div>
+                                    <button class="btn-action" id="btnRegistrar">
+                                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
+                                            stroke="currentColor" stroke-width="2">
+                                            <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z">
+                                            </path>
+                                            <polyline points="17 21 17 13 7 13 7 21"></polyline>
+                                            <polyline points="7 3 7 8 15 8"></polyline>
+                                        </svg>
+                                        Registrar
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Right Column: Stats & Table -->
+                        <div class="right-column">
+                            <!-- Stats Cards -->
+                            <div class="stats-container">
+                                <div class="stat-card glass-effect">
+                                    <div class="stat-icon green">
+                                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none"
+                                            stroke="currentColor" stroke-width="2">
+                                            <path d="M5 12h14"></path>
+                                            <path d="m12 5 7 7-7 7"></path>
+                                        </svg>
+                                    </div>
+                                    <div class="stat-info">
+                                        <div class="stat-value" id="totalIngresos">0</div>
+                                        <div class="stat-label">INGRESOS</div>
+                                    </div>
+                                </div>
+
+                                <div class="stat-card glass-effect">
+                                    <div class="stat-icon danger">
+                                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none"
+                                            stroke="currentColor" stroke-width="2">
+                                            <path d="M19 12H5"></path>
+                                            <path d="m12 19-7-7 7-7"></path>
+                                        </svg>
+                                    </div>
+                                    <div class="stat-info">
+                                        <div class="stat-value" id="totalSalidas">0</div>
+                                        <div class="stat-label">SALIDAS</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Tabla de Registros -->
+                            <div class="table-container glass-effect">
+                                <h3 class="section-title">Registros Recientes</h3>
+                                <div class="table-wrapper">
+                                    <table class="data-table">
+                                        <thead>
+                                            <tr>
+                                                <th class="col-fecha">Fecha Ingreso</th>
+                                                <th class="col-tipo">Tipo</th>
+                                                <th class="col-doc">Nro Documento</th>
+                                                <th class="col-nombre">Nombre</th>
+                                                <th class="col-empresa">Empresa</th>
+                                                <th class="col-area">Área</th>
+                                                <th class="col-motivo">Motivo</th>
+                                                <th class="col-contacto">Contacto</th>
+                                                <th class="col-estado">Estado</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="tableBody">
+                                            <!-- Los datos se cargarán dinámicamente -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- VIEW 2: DASHBOARD -->
+                <div id="view-dashboard" class="view-section" style="display:none;">
+                    <!-- ... dashboard content ... -->
+                </div>
+
+                <!-- VIEW 3: USUARIOS (Admin Only) -->
+                <div id="view-management" class="view-section" style="display:none;">
+                    <div class="management-wrapper">
+                        <div class="management-header glass-effect">
+                            <h2 class="view-title">Gestión de Usuarios</h2>
+                            <button class="btn-action primary" id="btnNewUser">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                    stroke-width="2">
+                                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                                </svg>
+                                Nuevo Usuario
+                            </button>
+                        </div>
+
+                        <div class="table-container glass-effect">
+                            <div class="table-wrapper">
+                                <table class="data-table">
+                                    <thead>
+                                        <tr>
+                                            <th>ID (DNI)</th>
+                                            <th>Nombres</th>
+                                            <th>Apellidos</th>
+                                            <th>Cliente</th>
+                                            <th>Unidad</th>
+                                            <th>Tipo</th>
+                                            <th>Acciones</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="usersTableBody">
+                                        <!-- Se llena con JS -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- VIEW 4: CLIENTES (Admin Only) -->
+                <div id="view-clients" class="view-section" style="display:none;">
+                    <div class="management-wrapper">
+                        <div class="management-header glass-effect">
+                            <h2 class="view-title">Gestión de Clientes y Sedes</h2>
+                            <div class="header-actions" style="display: flex; gap: 1rem;">
+                                <button class="btn-action primary" id="btnNewClient">
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                        stroke-width="2">
+                                        <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                                        <circle cx="8.5" cy="7" r="4"></circle>
+                                        <line x1="20" y1="8" x2="20" y2="14"></line>
+                                        <line x1="17" y1="11" x2="23" y2="11"></line>
+                                    </svg>
+                                    Agregar Cliente
+                                </button>
+                                <button class="btn-action secondary" id="btnNewUnit">
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                        stroke-width="2">
+                                        <path d="M3 21h18"></path>
+                                        <path d="M3 7v1a3 3 0 0 0 6 0V7m0 1a3 3 0 0 0 6 0V7m0 1a3 3 0 0 0 6 0V7H3z">
+                                        </path>
+                                        <line x1="12" y1="11" x2="12" y2="17"></line>
+                                        <line x1="9" y1="14" x2="15" y2="14"></line>
+                                    </svg>
+                                    Agregar Unidad
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="table-container glass-effect">
+                            <div class="table-wrapper">
+                                <table class="data-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Cliente</th>
+                                            <th>Unidades / Sedes Configuradas</th>
+                                            <th>Acciones</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="clientsTableBody">
+                                        <!-- Se llena con JS -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Confirmación de Salida -->
+    <div id="modalSalida" class="modal-overlay" style="display: none;">
+        <div class="modal-card glass-effect">
+            <h3 class="modal-title">Registrar Salida</h3>
+            <div id="modalStep1">
+                <p class="modal-text">¿Deseas agregar un comentario u observación de salida?</p>
+                <div class="modal-buttons">
+                    <button id="btnSalidaNo" class="btn-action danger-outline">NO</button>
+                    <button id="btnSalidaSi" class="btn-action primary">SÍ</button>
+                </div>
+            </div>
+            <div id="modalStep2" style="display: none;">
+                <textarea id="inputObservacionSalida" class="modal-textarea"
+                    placeholder="Ingrese el detalle de la salida..."></textarea>
+                <div class="modal-buttons">
+                    <button id="btnCancelarSalida" class="btn-action danger-outline">Cancelar</button>
+                    <button id="btnConfirmarSalida" class="btn-action primary">Confirmar Salida</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Advertencia de Duplicidad -->
+    <div id="modalDuplicidad" class="modal-overlay" style="display: none;">
+        <div class="modal-card glass-effect warning-border">
+            <div class="modal-icon-container">
+                <svg width="60" height="60" viewBox="0 0 24 24" fill="none" class="warning-icon">
+                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"
+                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
+                    <line x1="12" y1="9" x2="12" y2="13" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round"></line>
+                    <line x1="12" y1="17" x2="12.01" y2="17" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round"></line>
+                </svg>
+            </div>
+            <h3 class="modal-title text-warning">¡ADVERTENCIA DE SEGURIDAD!</h3>
+            <p class="modal-text" id="mensajeDuplicidad">El usuario ya cuenta con un ingreso activo.</p>
+            <div class="modal-buttons">
+                <button id="btnCerrarDuplicidad" class="btn-action primary">ENTENDIDO</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Overlay de Carga Futurista -->
+
+    <div id="loadingOverlay" class="loading-overlay" style="display: none;">
+        <div class="loader-container">
+            <div class="spiral-ring"></div>
+            <div class="spiral-ring reverse"></div>
+            <img src="./imagenes/logo.png" alt="Liderman" class="loader-logo">
+            <div class="loader-text">PROCESANDO DATOS...</div>
+        </div>
+    </div>
+
+    <!-- Modal de Gestión de Usuarios -->
+    <div id="modalUser" class="modal-overlay" style="display: none;">
+        <div class="modal-card management-modal glass-effect">
+            <h3 class="modal-title" id="modalUserTitle">NUEVO USUARIO</h3>
+            <form id="formUser" class="login-form">
+                <div class="input-row">
+                    <div class="input-group">
+                        <div class="input-icon">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2">
+                                <rect x="3" y="4" width="18" height="16" rx="2"></rect>
+                                <line x1="7" y1="8" x2="17" y2="8"></line>
+                                <line x1="7" y1="12" x2="17" y2="12"></line>
+                                <line x1="7" y1="16" x2="12" y2="16"></line>
+                            </svg>
+                        </div>
+                        <input type="text" id="userDni" placeholder="DNI / ID USUARIO" required maxlength="8"
+                            style="padding-left: 3rem !important;">
+                    </div>
+                    <div class="input-group">
+                        <select id="userRole" class="modern-select">
+                            <option value="cliente">CLIENTE</option>
+                            <option value="admin">ADMINISTRADOR</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="input-row">
+                    <div class="input-group">
+                        <div class="input-icon">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2">
+                                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                                <circle cx="12" cy="7" r="4"></circle>
+                            </svg>
+                        </div>
+                        <input type="text" id="userNames" placeholder="NOMBRES" required
+                            style="padding-left: 3rem !important;">
+                    </div>
+                    <div class="input-group">
+                        <input type="text" id="userLastNames" placeholder="APELLIDOS" required
+                            style="padding-left: 1rem !important;">
+                    </div>
+                </div>
+
+                <div class="input-row">
+                    <div class="input-group">
+                        <div class="input-icon">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2">
+                                <path d="M3 21h18"></path>
+                                <path d="M3 7v1a3 3 0 0 0 6 0V7m0 1a3 3 0 0 0 6 0V7m0 1a3 3 0 0 0 6 0V7H3z"></path>
+                                <path d="M9 17h1m-1-4h1m8 4h1m-1-4h1M3 7V4a1 1 0 0 1 1-1h16a1 1 0 0 1 1 1v3"></path>
+                            </svg>
+                        </div>
+                        <input type="text" id="userClient" placeholder="BUSCAR CLIENTE..." readonly
+                            class="modern-input search-trigger" style="padding-left: 3rem !important; cursor: pointer;">
+                        <input type="hidden" id="userClientId">
+                    </div>
+                    <div class="input-group">
+                        <input type="text" id="userUnit" placeholder="BUSCAR UNIDAD..." readonly
+                            class="modern-input search-trigger" style="padding-left: 1rem !important; cursor: pointer;">
+                    </div>
+                </div>
+
+                <div class="password-section" id="passwordSection">
+                    <div class="section-divider"></div>
+                    <p class="section-subtitle">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                            <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                        </svg>
+                        SEGURIDAD
+                    </p>
+                    <div class="input-row">
+                        <div class="input-group">
+                            <input type="password" id="userPass" placeholder="CONTRASEÑA"
+                                style="padding-left: 1rem !important;">
+                        </div>
+                        <div class="input-group">
+                            <input type="password" id="userPassConfirm" placeholder="REPETIR CONTRASEÑA"
+                                style="padding-left: 1rem !important;">
+                        </div>
+                    </div>
+                    <small style="color: var(--text-muted); display: block; margin-top: 5px; font-style: italic;">
+                        * Dejar en blanco para conservar contraseña actual
+                    </small>
+                </div>
+
+                <div class="modal-buttons">
+                    <button type="button" id="btnCancelUser"
+                        class="btn-action danger-outline btn-cyber">CANCELAR</button>
+                    <button type="submit" id="btnSaveUser" class="btn-action primary btn-cyber">GUARDAR USUARIO</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal Nuevo Cliente -->
+    <div id="modalClient" class="modal-overlay" style="display: none;">
+        <div class="modal-card management-modal glass-effect">
+            <h3 class="modal-title">AGREGAR CLIENTE</h3>
+            <form id="formClient">
+                <div class="input-group">
+                    <input type="text" id="clientName" placeholder="NOMBRE DE LA EMPRESA / CLIENTE" required
+                        class="modern-input">
+                </div>
+
+                <div class="section-divider"></div>
+                <p class="section-subtitle">UNIDADES / SEDES</p>
+
+                <div id="unitsContainer" class="dynamic-inputs-list">
+                    <div class="input-row unit-row">
+                        <input type="text" name="clientUnit" placeholder="UNIDAD 1" required class="modern-input">
+                        <button type="button" class="btn-icon-only remove-unit" style="display:none;">&times;</button>
+                    </div>
+                </div>
+
+                <button type="button" id="btnAddUnitRow" class="btn-action secondary-outline"
+                    style="width: 100%; margin: 10px 0;">
+                    + AGREGAR OTRA UNIDAD
+                </button>
+
+                <div class="modal-buttons">
+                    <button type="button" id="btnCancelClient"
+                        class="btn-action danger-outline btn-cyber">CANCELAR</button>
+                    <button type="submit" class="btn-action primary btn-cyber">GUARDAR CLIENTE</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal Nueva Unidad (Individual) -->
+    <div id="modalUnitAdd" class="modal-overlay" style="display: none;">
+        <div class="modal-card management-modal glass-effect">
+            <h3 class="modal-title">AGREGAR UNIDAD</h3>
+            <form id="formUnitAdd">
+                <div class="input-group">
+                    <input type="text" id="targetClient" placeholder="BUSCAR CLIENTE..." readonly
+                        class="modern-input search-trigger" style="cursor: pointer;">
+                </div>
+
+                <div id="targetUnitsContainer" style="display: none;">
+                    <div class="section-divider"></div>
+                    <div id="newUnitsList" class="dynamic-inputs-list">
+                        <div class="input-row unit-row">
+                            <input type="text" name="newUnit" placeholder="NOMBRE DE LA UNIDAD" class="modern-input">
+                        </div>
+                    </div>
+                    <button type="button" id="btnAddMoreUnits" class="btn-action secondary-outline"
+                        style="width: 100%; margin: 10px 0;">
+                        + AGREGAR OTRA UNIDAD
+                    </button>
+                </div>
+
+                <div class="modal-buttons">
+                    <button type="button" id="btnCancelUnitAdd"
+                        class="btn-action danger-outline btn-cyber">CANCELAR</button>
+                    <button type="submit" class="btn-action primary btn-cyber">GUARDAR CAMBIOS</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal de Búsqueda Predictiva -->
+    <div id="modalSearch" class="modal-overlay" style="display: none; z-index: 20000;">
+        <div class="modal-card predictive-search-modal glass-effect">
+            <div class="search-header">
+                <div class="search-input-wrapper">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                        class="search-icon">
+                        <circle cx="11" cy="11" r="8"></circle>
+                        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                    </svg>
+                    <input type="text" id="searchInput" placeholder="Escriba para buscar..." autocomplete="off">
+                    <button type="button" id="btnClearSearch" class="btn-clear" style="display: none;">&times;</button>
+                </div>
+                <button type="button" id="btnCloseSearch" class="btn-close-modal">&times;</button>
+            </div>
+            <div id="searchResults" class="search-results-list">
+                <!-- Los resultados se cargarán aquí -->
+                <div class="search-empty-state">No hay resultados</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+    <script type="module" src="./src/menu.js"></script>
+</body>
+
+</html>

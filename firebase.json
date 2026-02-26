@@ -1,0 +1,17 @@
+{
+  "projects": {
+    "default": "checklist-vehicular-3cf6a"
+  },
+  "functions": [
+    {
+      "source": "functions",
+      "codebase": "default",
+      "ignore": [
+        "node_modules",
+        ".git",
+        "firebase-debug.log",
+        "firebase-debug.*.log"
+      ]
+    }
+  ]
+}
