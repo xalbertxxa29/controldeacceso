@@ -711,39 +711,6 @@ body {
   }
 }
 
-@keyframes spin {
-  from {
-    transform: rotate(0deg);
-  }
-
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-@keyframes slideIn {
-  from {
-    transform: translateX(100%);
-    opacity: 0;
-  }
-
-  to {
-    transform: translateX(0);
-    opacity: 1;
-  }
-}
-
-@keyframes slideOut {
-  from {
-    transform: translateX(0);
-    opacity: 1;
-  }
-
-  to {
-    transform: translateX(100%);
-    opacity: 0;
-  }
-}
 
 .security-badge {
   display: flex;
@@ -1140,12 +1107,24 @@ body {
 }
 
 .data-table tbody tr {
-  transition: all 0.3s ease;
+  transition: background-color 0.3s ease;
 }
 
 .data-table tbody tr:hover {
-  background: rgba(0, 217, 255, 0.05);
-  transform: scale(1.01);
+  background: rgba(0, 217, 255, 0.08);
+}
+
+/* Estado vacío para tablas sin datos */
+.data-table tbody:empty::after {
+  content: 'No hay registros para mostrar';
+  display: block;
+  text-align: center;
+  padding: 3rem 1rem;
+  color: var(--text-muted);
+  font-family: var(--font-display);
+  font-size: 0.95rem;
+  letter-spacing: 1px;
+  opacity: 0.6;
 }
 
 .data-table .status-badge {
@@ -1754,95 +1733,6 @@ body {
     /* Ocultar título en móvil si no cabe */
   }
 
-  /* ========================================
-   OVERLAY DE CARGA (ESPIRAL)
-   ======================================== */
-  .loading-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(8, 11, 28, 0.95);
-    backdrop-filter: blur(10px);
-    z-index: 99999;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 0.3s ease;
-  }
-
-  .loading-overlay.active {
-    opacity: 1;
-    pointer-events: all;
-  }
-
-  .spiral-container {
-    position: relative;
-    width: 150px;
-    height: 150px;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-  }
-
-  .spiral-ring {
-    position: absolute;
-    width: 100%;
-    height: 100%;
-    border-radius: 50%;
-    border: 4px solid transparent;
-    border-top-color: var(--primary-cyan);
-    border-right-color: var(--primary-cyan);
-    animation: spin 1.5s linear infinite;
-    box-shadow: 0 0 20px var(--primary-cyan-glow);
-  }
-
-  .spiral-ring.inner {
-    width: 70%;
-    height: 70%;
-    border-top-color: var(--accent-red);
-    border-right-color: var(--accent-red);
-    animation: spin-reverse 1.2s linear infinite;
-    box-shadow: 0 0 15px var(--accent-red-glow);
-  }
-
-  .loader-logo-text {
-    font-family: var(--font-display);
-    font-weight: 900;
-    font-size: 1.2rem;
-    letter-spacing: 2px;
-    color: #fff;
-    z-index: 10;
-    text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
-    animation: pulse 2s infinite;
-  }
-
-  @keyframes spin-reverse {
-    from {
-      transform: rotate(0deg);
-    }
-
-    to {
-      transform: rotate(-360deg);
-    }
-  }
-
-  @keyframes pulse {
-
-    0%,
-    100% {
-      opacity: 1;
-      transform: scale(1);
-    }
-
-    50% {
-      opacity: 0.8;
-      transform: scale(0.95);
-    }
-  }
 }
 
 /* ========================================
@@ -1974,6 +1864,32 @@ body {
 .btn-action.primary:hover {
   background: #00b8d4;
   box-shadow: 0 0 15px var(--primary-cyan-glow);
+}
+
+.btn-action.secondary {
+  background: rgba(0, 217, 255, 0.08);
+  border: 1px solid rgba(0, 217, 255, 0.4);
+  color: var(--primary-cyan);
+  font-weight: 600;
+}
+
+.btn-action.secondary:hover {
+  background: rgba(0, 217, 255, 0.15);
+  border-color: var(--primary-cyan);
+  box-shadow: 0 0 15px var(--primary-cyan-glow);
+  color: #fff;
+}
+
+.btn-action.danger {
+  background: linear-gradient(135deg, var(--accent-red), #cc0033);
+  border: none;
+  color: #fff;
+  font-weight: 700;
+}
+
+.btn-action.danger:hover {
+  box-shadow: 0 0 20px var(--accent-red-glow);
+  filter: brightness(1.15);
 }
 
 /* =========================================
@@ -2339,6 +2255,10 @@ body.initial-load {
   border-left: 4px solid var(--primary-cyan);
 }
 
+.management-header.glass-effect {
+  overflow: visible;
+}
+
 @media (max-width: 900px) {
   .management-header {
     flex-direction: column;
@@ -2655,6 +2575,16 @@ body.initial-load {
   padding: 1.5rem;
 }
 
+.view-title {
+  font-family: var(--font-display);
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: var(--primary-cyan);
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  white-space: nowrap;
+}
+
 .dashboard-header {
   display: flex;
   justify-content: space-between;
@@ -2665,6 +2595,12 @@ body.initial-load {
   margin-bottom: 1.5rem;
   background: rgba(255, 255, 255, 0.03);
   border-radius: 12px;
+  border-left: 4px solid var(--primary-cyan);
+}
+
+/* Override glass-effect overflow para que los filtros se vean */
+.dashboard-header.glass-effect {
+  overflow: visible;
 }
 
 .dashboard-filters {
