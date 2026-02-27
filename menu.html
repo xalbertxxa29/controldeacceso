@@ -361,6 +361,22 @@
                             </button>
                         </div>
 
+                        <!-- Barra de Búsqueda de Usuarios -->
+                        <div class="search-bar-container" style="display: flex; gap: 1rem; margin-bottom: 1rem;">
+                            <div class="input-group" style="flex: 1;">
+                                <div class="input-icon">
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                        stroke-width="2">
+                                        <circle cx="11" cy="11" r="8"></circle>
+                                        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                                    </svg>
+                                </div>
+                                <input type="text" id="searchInputUsers" class="modern-input"
+                                    placeholder="Buscar por DNI, Nombres o Apellidos..."
+                                    style="padding-left: 3rem !important;">
+                            </div>
+                        </div>
+
                         <div class="table-container glass-effect">
                             <div class="table-wrapper">
                                 <table class="data-table">
@@ -380,6 +396,12 @@
                                         <!-- Se llena con JS -->
                                     </tbody>
                                 </table>
+                            </div>
+                            <!-- Controles de Paginación de Usuarios -->
+                            <div class="pagination-controls" id="usersPagination" style="display: none;">
+                                <button id="btnPrevUserPage" class="btn-action danger-outline">Anterior</button>
+                                <span id="userPageIndicator" class="page-indicator">Página 1 de X</span>
+                                <button id="btnNextUserPage" class="btn-action danger-outline">Siguiente</button>
                             </div>
                         </div>
                     </div>
@@ -595,12 +617,12 @@
                                 <path d="M9 17h1m-1-4h1m8 4h1m-1-4h1M3 7V4a1 1 0 0 1 1-1h16a1 1 0 0 1 1 1v3"></path>
                             </svg>
                         </div>
-                        <input type="text" id="userClient" placeholder="BUSCAR CLIENTE..." readonly
+                        <input type="text" id="userClient" placeholder="BUSCAR CLIENTE..." readonly required
                             class="modern-input search-trigger" style="padding-left: 3rem !important; cursor: pointer;">
                         <input type="hidden" id="userClientId">
                     </div>
                     <div class="input-group">
-                        <input type="text" id="userUnit" placeholder="BUSCAR UNIDAD..." readonly
+                        <input type="text" id="userUnit" placeholder="BUSCAR UNIDAD..." readonly required
                             class="modern-input search-trigger" style="padding-left: 1rem !important; cursor: pointer;">
                     </div>
                 </div>

@@ -1,5 +1,5 @@
 import './style.css';
-import { auth, db } from './firebase.js';
+import { auth, db, functions, httpsCallable } from './firebase.js';
 import { signOut } from 'firebase/auth';
 import { collection, addDoc, query, orderBy, limit, onSnapshot, serverTimestamp, where, getDocs, updateDoc, doc, Timestamp, getDoc, or } from 'firebase/firestore';
 import { renderizarGraficos, actualizarTablaDashboard } from './charts.js';
@@ -1627,67 +1627,136 @@ async function cargarUnidadesSelect(clienteId, unidadActual = null) {
   }
 }
 
+let currentUsersData = [];
+let usersCurrentPage = 1;
+const USERS_ITEMS_PER_PAGE = 20;
+let usersSearchQuery = '';
+let usersPaginationListenersAttached = false;
+
 async function cargarUsuariosTable() {
+  showLoading();
   const tableBody = document.getElementById('usersTableBody');
   if (!tableBody) return;
-
-  tableBody.innerHTML = '<tr><td colspan="7" style="text-align:center;">Cargando usuarios...</td></tr>';
 
   try {
     const q = query(collection(db, 'usuarios'), orderBy('apellidos', 'asc'));
     const snapshot = await getDocs(q);
 
-    tableBody.innerHTML = '';
-
-    if (snapshot.empty) {
-      tableBody.innerHTML = '<tr><td colspan="7" style="text-align:center;">No hay usuarios registrados.</td></tr>';
-      return;
-    }
-
+    currentUsersData = [];
     snapshot.forEach(docSnap => {
       const u = docSnap.data();
-      const id = docSnap.id;
-
-      const tr = document.createElement('tr');
-      tr.innerHTML = `
-        <td>${id}</td>
-        <td>${u.nombres || '-'}</td>
-        <td>${u.apellidos || '-'}</td>
-        <td>${u.cliente || '-'}</td>
-        <td>${u.unidad || '-'}</td>
-        <td>${u.puesto || '-'}</td>
-        <td><span class="status-badge ${u.tipo}">${u.tipo || 'cliente'}</span></td>
-        <td class="actions-cell">
-          <button class="btn-icon-only edit-user" data-id="${id}" title="Editar">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
-            </svg>
-          </button>
-          <button class="btn-icon-only delete delete-user" data-id="${id}" title="Eliminar">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <polyline points="3 6 5 6 21 6"></polyline>
-              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-            </svg>
-          </button>
-        </td>
-      `;
-
-      tableBody.appendChild(tr);
+      currentUsersData.push({ id: docSnap.id, ...u });
     });
 
-    // Listeners para botones de acción
-    document.querySelectorAll('.edit-user').forEach(btn => {
-      btn.addEventListener('click', () => abrirModalUsuario(btn.dataset.id));
-    });
+    usersCurrentPage = 1;
 
-    document.querySelectorAll('.delete-user').forEach(btn => {
-      btn.addEventListener('click', () => confirmarEliminarUsuario(btn.dataset.id));
-    });
+    // Attach search listener if not already
+    const searchInput = document.getElementById('searchInputUsers');
+    if (searchInput && !searchInput.dataset.listenerAttached) {
+      searchInput.addEventListener('input', (e) => {
+        usersSearchQuery = e.target.value.toLowerCase();
+        usersCurrentPage = 1;
+        renderUsersTablePage();
+      });
+      searchInput.dataset.listenerAttached = 'true';
+    }
 
+    renderUsersTablePage();
   } catch (error) {
     console.error('Error cargando usuarios:', error);
     showNotification('Error al cargar la lista de usuarios', 'error');
+  } finally {
+    hideLoading();
+  }
+}
+
+function renderUsersTablePage() {
+  const tableBody = document.getElementById('usersTableBody');
+  if (!tableBody) return;
+
+  const pagination = document.getElementById('usersPagination');
+  tableBody.innerHTML = '';
+
+  // Filter Data
+  const filteredData = currentUsersData.filter(u => {
+    if (!usersSearchQuery) return true;
+    const combinada = `${u.id} ${u.nombres || ''} ${u.apellidos || ''}`.toLowerCase();
+    return combinada.includes(usersSearchQuery);
+  });
+
+  if (filteredData.length === 0) {
+    tableBody.innerHTML = '<tr><td colspan="8" style="text-align:center;">No se encontraron usuarios.</td></tr>';
+    if (pagination) pagination.style.display = 'none';
+    return;
+  }
+
+  const totalPages = Math.ceil(filteredData.length / USERS_ITEMS_PER_PAGE);
+  const startIndex = (usersCurrentPage - 1) * USERS_ITEMS_PER_PAGE;
+  const endIndex = startIndex + USERS_ITEMS_PER_PAGE;
+  const displayData = filteredData.slice(startIndex, endIndex);
+
+  displayData.forEach(u => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${u.id}</td>
+      <td>${u.nombres || '-'}</td>
+      <td>${u.apellidos || '-'}</td>
+      <td>${u.cliente || '-'}</td>
+      <td>${u.unidad || '-'}</td>
+      <td>${u.puesto || '-'}</td>
+      <td><span class="status-badge ${u.tipo}">${u.tipo || 'cliente'}</span></td>
+      <td class="actions-cell">
+        <button class="btn-icon-only edit-user" data-id="${u.id}" title="Editar">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+          </svg>
+        </button>
+        <button class="btn-icon-only delete delete-user" data-id="${u.id}" title="Eliminar">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="3 6 5 6 21 6"></polyline>
+            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+          </svg>
+        </button>
+      </td>
+    `;
+    tableBody.appendChild(tr);
+  });
+
+  // Attach actions
+  document.querySelectorAll('.edit-user').forEach(btn => {
+    btn.addEventListener('click', () => abrirModalUsuario(btn.dataset.id));
+  });
+  document.querySelectorAll('.delete-user').forEach(btn => {
+    btn.addEventListener('click', () => confirmarEliminarUsuario(btn.dataset.id));
+  });
+
+  // Pagination UI
+  if (pagination) {
+    if (totalPages > 1) {
+      pagination.style.display = 'flex';
+      document.getElementById('userPageIndicator').textContent = `Página ${usersCurrentPage} de ${totalPages}`;
+      document.getElementById('btnPrevUserPage').disabled = usersCurrentPage === 1;
+      document.getElementById('btnNextUserPage').disabled = usersCurrentPage === totalPages;
+
+      if (!usersPaginationListenersAttached) {
+        document.getElementById('btnPrevUserPage').addEventListener('click', () => {
+          if (usersCurrentPage > 1) {
+            usersCurrentPage--;
+            renderUsersTablePage();
+          }
+        });
+        document.getElementById('btnNextUserPage').addEventListener('click', () => {
+          if (usersCurrentPage < Math.ceil(filteredData.length / USERS_ITEMS_PER_PAGE)) {
+            usersCurrentPage++;
+            renderUsersTablePage();
+          }
+        });
+        usersPaginationListenersAttached = true;
+      }
+    } else {
+      pagination.style.display = 'none';
+    }
   }
 }
 
@@ -1709,6 +1778,7 @@ async function abrirModalUsuario(userId = null) {
 
   if (userId) {
     title.textContent = 'EDITAR USUARIO';
+    document.getElementById('userPass').removeAttribute('required');
     try {
       const docSnap = await getDoc(doc(db, 'usuarios', userId));
       if (docSnap.exists()) {
@@ -1728,6 +1798,7 @@ async function abrirModalUsuario(userId = null) {
   } else {
     title.textContent = 'NUEVO USUARIO';
     document.getElementById('userDni').readOnly = false;
+    document.getElementById('userPass').setAttribute('required', 'true');
   }
 
   modal.style.display = 'flex';
@@ -1750,7 +1821,7 @@ async function guardarUsuario(e) {
   const passConfirm = document.getElementById('userPassConfirm').value;
 
   if (pass !== passConfirm) {
-    showNotification('Las contraseñas no coinciden', 'error');
+    window.mostrarAviso('ERROR', 'Las contraseñas no coinciden', 'error');
     return;
   }
 
@@ -1763,46 +1834,71 @@ async function guardarUsuario(e) {
     tipo: document.getElementById('userRole').value
   };
 
-  const loading = document.getElementById('loadingOverlay');
-  if (loading) loading.classList.add('active');
+  showLoading();
 
   try {
-    // 1. Guardar en Firestore (Document ID = DNI)
+    // 1. Gestionar en Firebase Auth a través de la Cloud Function
+    const actionAuth = document.getElementById('userDni').readOnly ? 'update' : 'create';
+
+    // Si es nuevo o hay contraseña se envia a Auth
+    if (actionAuth === 'create' || pass !== '') {
+      const gestionarAuth = httpsCallable(functions, 'gestionarUsuarioAuth');
+      await gestionarAuth({
+        action: actionAuth,
+        dni: dni,
+        password: pass
+      });
+    }
+
+    // 2. Guardar en Firestore (Document ID = DNI)
     await updateDoc(doc(db, 'usuarios', dni), userData).catch(async (err) => {
       // Si no existe (error al actualizar), intentamos setDoc enviando el objeto completo
       const { setDoc } = await import('firebase/firestore');
       return setDoc(doc(db, 'usuarios', dni), userData);
     });
 
-    // 2. Por ahora, si hay password, notificamos que se debe hacer vía Auth manualmente o vía secondaryApp
-    if (pass) {
-      showNotification('Usuario guardado. Para habilitar acceso Auth, use SecondaryApp o Consola.', 'warning');
-    } else {
-      showNotification('Usuario guardado correctamente', 'success');
-    }
+    window.mostrarAviso('ÉXITO', actionAuth === 'create' ? 'Usuario creado correctamente' : 'Usuario actualizado correctamente', 'success');
 
     cerrarModalUsuario();
     cargarUsuariosTable();
 
   } catch (error) {
     console.error('Error al guardar usuario:', error);
-    showNotification('Error al procesar la solicitud', 'error');
+    const errorMsg = error.message || 'Error al procesar la solicitud';
+    window.mostrarAviso('ERROR', errorMsg, 'error');
   } finally {
-    if (loading) loading.classList.remove('active');
+    hideLoading();
   }
 }
 
 async function confirmarEliminarUsuario(userId) {
-  if (confirm(`¿Estás seguro de eliminar el usuario con DNI ${userId}?`)) {
+  const isConfirmed = await window.mostrarConfirmacion(
+    'CONFIRMAR ELIMINACIÓN',
+    `¿Estás seguro de eliminar el usuario con DNI ${userId}?`
+  );
+
+  if (isConfirmed) {
+    showLoading();
     const { deleteDoc } = await import('firebase/firestore');
 
     try {
+      // Eliminar de Auth
+      const gestionarAuth = httpsCallable(functions, 'gestionarUsuarioAuth');
+      await gestionarAuth({
+        action: 'delete',
+        dni: userId
+      });
+
+      // Eliminar de Firestore
       await deleteDoc(doc(db, 'usuarios', userId));
+
       showNotification('Usuario eliminado', 'success');
       cargarUsuariosTable();
     } catch (error) {
       console.error('Error eliminando:', error);
-      showNotification('Error al eliminar usuario', 'error');
+      window.mostrarAviso('ERROR', 'Error al eliminar usuario', 'error');
+    } finally {
+      hideLoading();
     }
   }
 }

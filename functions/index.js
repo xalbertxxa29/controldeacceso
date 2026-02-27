@@ -151,3 +151,62 @@ exports.obtenerRegistros = functions.https.onCall(async (data, context) => {
     );
   }
 });
+
+/**
+ * Cloud Function Callable para Crear/Actualizar/Eliminar usuarios en Firebase Auth
+ */
+exports.gestionarUsuarioAuth = functions.https.onCall(async (data, context) => {
+  try {
+    const { action, dni, password } = data;
+
+    if (!dni || !action) {
+      throw new functions.https.HttpsError('invalid-argument', 'Faltan parámetros requeridos: action y dni');
+    }
+
+    const email = `${dni}@liderman.com.pe`;
+
+    if (action === 'create' || action === 'update') {
+      if (!password) {
+        throw new functions.https.HttpsError('invalid-argument', 'La contraseña es obligatoria para crear o actualizar');
+      }
+
+      try {
+        // Intentar actualizar si existe
+        await admin.auth().updateUser(dni, {
+          email: email,
+          password: password,
+        });
+        console.log(`Usuario ${dni} actualizado exitosamente en Auth`);
+      } catch (err) {
+        if (err.code === 'auth/user-not-found') {
+          // Si no existe, crearlo
+          await admin.auth().createUser({
+            uid: dni,
+            email: email,
+            password: password,
+          });
+          console.log(`Usuario ${dni} creado exitosamente en Auth`);
+        } else {
+          throw err;
+        }
+      }
+    } else if (action === 'delete') {
+      try {
+        await admin.auth().deleteUser(dni);
+        console.log(`Usuario ${dni} eliminado exitosamente de Auth`);
+      } catch (err) {
+        if (err.code !== 'auth/user-not-found') {
+          throw err;
+        }
+        console.log(`Usuario ${dni} no encontrado en Auth, no se requiere eliminación`);
+      }
+    } else {
+      throw new functions.https.HttpsError('invalid-argument', 'Acción no válida');
+    }
+
+    return { success: true };
+  } catch (error) {
+    console.error('Error en gestionarUsuarioAuth:', error);
+    throw new functions.https.HttpsError('internal', `Error gestionando Auth: ${error.message}`);
+  }
+});
