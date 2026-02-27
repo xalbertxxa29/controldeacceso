@@ -322,10 +322,10 @@ body {
 .input-group textarea {
   width: 100%;
   padding: var(--spacing-sm) var(--spacing-sm) var(--spacing-sm) 3rem;
-  background: rgba(255, 255, 255, 0.95);
+  background: rgba(13, 17, 43, 0.6);
   border: 1px solid rgba(0, 217, 255, 0.3);
   border-radius: var(--radius-sm);
-  color: #1a202c;
+  color: var(--text-primary);
   font-family: var(--font-body);
   font-weight: 600;
   font-size: 1rem;
@@ -336,7 +336,7 @@ body {
 
 .input-group input:not([readonly]):not(:disabled):hover,
 .input-group textarea:not([readonly]):not(:disabled):hover {
-  background: #ffffff;
+  background: rgba(13, 17, 43, 0.8);
   border-color: var(--primary-cyan);
   box-shadow: 0 0 15px rgba(0, 217, 255, 0.2);
   transform: translateY(-1px);
@@ -344,7 +344,7 @@ body {
 
 .input-group input:focus,
 .input-group textarea:focus {
-  background: #ffffff;
+  background: rgba(13, 17, 43, 1);
   border-color: var(--primary-cyan);
   box-shadow: 0 0 20px rgba(0, 217, 255, 0.3);
 }
@@ -1536,12 +1536,20 @@ body {
 }
 
 .modern-input {
-  background: rgba(255, 255, 255, 0.9);
+  background: rgba(13, 17, 43, 0.6);
   border: 1px solid rgba(0, 217, 255, 0.3);
   padding: 0.5rem 1rem;
   border-radius: var(--radius-sm);
-  color: #1a202c;
+  color: var(--text-primary);
   font-family: var(--font-body);
+  transition: all 0.3s ease;
+}
+
+.modern-input:focus {
+  background: rgba(13, 17, 43, 1);
+  border-color: var(--primary-cyan);
+  box-shadow: 0 0 20px rgba(0, 217, 255, 0.3);
+  outline: none;
 }
 
 .filter-btns {
@@ -1740,6 +1748,27 @@ body {
   box-shadow: 0 0 30px rgba(0, 0, 0, 0.5);
   text-align: center;
   background: rgba(13, 17, 43, 0.95);
+}
+
+.modal-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+  text-align: left;
+  margin-bottom: 2rem;
+}
+
+.modal-grid .full-width {
+  grid-column: span 2;
+}
+
+.modal-grid .input-group label {
+  display: block;
+  margin-bottom: 0.5rem;
+  color: var(--primary-cyan);
+  font-family: var(--font-display);
+  font-size: 0.8rem;
+  letter-spacing: 1px;
 }
 
 .modal-title {
@@ -2478,4 +2507,225 @@ body.initial-load {
     width: 260px !important;
     min-width: 260px !important;
   }
+}
+
+/* --- DASHBOARD STYLES --- */
+.dashboard-wrapper {
+  padding: 1.5rem;
+}
+
+.dashboard-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem;
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 12px;
+}
+
+.dashboard-filters {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  align-items: flex-end;
+}
+
+.filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.filter-group label {
+  font-size: 0.75rem;
+  color: #00d9ff;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.dashboard-charts {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.chart-container {
+  padding: 1.5rem;
+  height: 400px !important;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 12px;
+  position: relative;
+}
+
+.chart-container h3 {
+  font-size: 0.9rem;
+  color: #fff;
+  margin-bottom: 1rem;
+  text-align: center;
+}
+
+@media (max-width: 1024px) {
+  .dashboard-charts {
+    grid-template-columns: 1fr;
+  }
+
+  .chart-container {
+    height: 350px !important;
+  }
+}
+
+/* --- MODAL REGISTRATION STYLES --- */
+.modal-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  margin-top: 1.5rem;
+}
+
+.modal-grid .full-width {
+  grid-column: span 2;
+}
+
+.modal-grid label {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--primary-cyan);
+  margin-bottom: 0.3rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.modal-grid .modern-input {
+  width: 100%;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #fff;
+  padding: 0.8rem;
+  border-radius: 4px;
+  font-family: inherit;
+  font-size: 0.9rem;
+}
+
+.modal-grid textarea.modern-input {
+  height: 80px;
+  resize: none;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 1rem;
+  margin-top: 2rem;
+}
+
+.mt-10 {
+  margin-top: 10px;
+}
+
+.w-100 {
+  width: 100%;
+}
+
+@media (max-width: 600px) {
+  .modal-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .modal-grid .full-width {
+    grid-column: span 1;
+  }
+}
+
+/* Modal Feedback Borders */
+.modal-card.success-border {
+  border: 1px solid #00d964 !important;
+  box-shadow: 0 0 30px rgba(0, 217, 100, 0.3), inset 0 0 15px rgba(0, 217, 100, 0.1) !important;
+}
+
+.modal-card.error-border {
+  border: 1px solid var(--accent-red) !important;
+  box-shadow: 0 0 30px rgba(255, 51, 102, 0.3), inset 0 0 15px rgba(255, 51, 102, 0.1) !important;
+}
+
+.modal-card.warning-border {
+  border: 1px solid var(--primary-cyan) !important;
+  box-shadow: 0 0 30px rgba(0, 217, 255, 0.3), inset 0 0 15px rgba(0, 217, 255, 0.1) !important;
+}
+
+/* FIX: Date Input Icons */
+input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+  cursor: pointer;
+}
+
+/* Logo in Header */
+.header-logo {
+  height: 40px;
+  width: auto;
+  object-fit: contain;
+  margin-right: 15px;
+  filter: drop-shadow(0 0 10px rgba(0, 217, 255, 0.5));
+}
+
+/* Pagination Controls */
+.pagination-controls {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 15px;
+  padding: 1rem;
+  margin-top: 1rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.pagination-controls button {
+  padding: 5px 15px;
+  font-size: 0.9rem;
+  min-width: 80px;
+}
+
+.pagination-controls button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.page-indicator {
+  font-family: var(--font-display);
+  color: var(--primary-cyan);
+  font-weight: bold;
+}
+
+/* Unit Badge Delete Button */
+.badge-with-delete {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: rgba(0, 217, 255, 0.1);
+  border: 1px solid rgba(0, 217, 255, 0.2);
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 0.8rem;
+}
+
+.badge-delete-btn {
+  background: transparent;
+  border: none;
+  color: var(--accent-red);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
+  margin-left: 5px;
+  border-radius: 50%;
+  transition: all 0.2s ease;
+}
+
+.badge-delete-btn:hover {
+  background: rgba(255, 51, 102, 0.2);
+  transform: scale(1.1);
 }

@@ -1,26 +1,58 @@
 import './style.css';
 import { auth, db } from './firebase.js';
 import { signOut } from 'firebase/auth';
-import { collection, addDoc, query, orderBy, limit, onSnapshot, serverTimestamp, where, getDocs, updateDoc, doc, Timestamp, getDoc } from 'firebase/firestore';
+import { collection, addDoc, query, orderBy, limit, onSnapshot, serverTimestamp, where, getDocs, updateDoc, doc, Timestamp, getDoc, or } from 'firebase/firestore';
 import { renderizarGraficos, actualizarTablaDashboard } from './charts.js';
 import * as XLSX from 'xlsx';
 
-// Variables de sesión
-const userClient = localStorage.getItem('userClient');
-const userUnit = localStorage.getItem('userUnit');
-const userFullName = `${localStorage.getItem('userName') || ''} ${localStorage.getItem('userLastName') || ''}`.trim();
+// Variables de sesión (Se actualizarán dinámicamente)
+let userClient = localStorage.getItem('userClient');
+let userUnit = localStorage.getItem('userUnit');
+let userFullName = `${localStorage.getItem('userName') || ''} ${localStorage.getItem('userLastName') || ''}`.trim();
+let userType = localStorage.getItem('userType');
 
-// Verificar autenticación
+// Funciones globales de modales
+window.abrirModal = function (id) {
+  const modal = document.getElementById(id);
+  if (modal) {
+    modal.style.display = 'flex';
+    // Forzar reflow para animación
+    void modal.offsetWidth;
+    modal.classList.add('active');
+  }
+};
+
+window.cerrarModal = function (id) {
+  const modal = document.getElementById(id);
+  if (modal) {
+    modal.classList.remove('active');
+    setTimeout(() => {
+      modal.style.display = 'none';
+    }, 300);
+  }
+};
+
 // Verificar autenticación
 auth.onAuthStateChanged(async (user) => {
   if (!user) {
     window.location.href = '/index.html';
   } else {
-    // AUTORECUPERACIÓN: Si hay usuario Auth pero faltan datos en LocalStorage (ej: sesión persistente anterior)
-    if (!localStorage.getItem('userClient') || !localStorage.getItem('userUnit')) {
+    // 1. Recuperar variables de localStorage
+    userClient = localStorage.getItem('userClient');
+    userUnit = localStorage.getItem('userUnit');
+    userFullName = `${localStorage.getItem('userName') || ''} ${localStorage.getItem('userLastName') || ''}`.trim();
+    userType = localStorage.getItem('userType');
+
+    console.log('Session state detected:', { userClient, userUnit, userFullName, userType });
+
+    // AUTORECUPERACIÓN: Si hay usuario Auth pero faltan datos en LocalStorage
+    if (!userClient || !userUnit) {
       console.log('Sesión incompleta detectada. Recuperando perfil de Firestore...');
       try {
-        const userId = user.email.split('@')[0];
+        const userEmail = user.email;
+        if (!userEmail) throw new Error('Usuario sin email registrado');
+
+        const userId = userEmail.split('@')[0];
         const userDocRef = doc(db, 'usuarios', userId);
         const userSnapshot = await getDoc(userDocRef);
 
@@ -34,9 +66,7 @@ auth.onAuthStateChanged(async (user) => {
           localStorage.setItem('userUnit', data.unidad || '');
           localStorage.setItem('userType', data.tipo || '');
 
-          // VALIDACIÓN DE ROL EN AUTO-RECUPERACIÓN
           if (data.tipo !== 'cliente' && data.tipo !== 'admin') {
-            console.error('Acceso denegado: Rol no autorizado.');
             await signOut(auth);
             localStorage.clear();
             window.location.href = '/index.html';
@@ -44,44 +74,36 @@ auth.onAuthStateChanged(async (user) => {
           }
 
           console.log('Perfil recuperado. Recargando...');
-          window.location.reload(); // Recargar para aplicar variables globales
+          window.location.reload();
           return;
         } else {
           console.error('Usuario autenticado no tiene perfil en BD.');
-          alert('Error: Tu usuario no tiene perfil de unidad asignado.');
+          mostrarAviso('ERROR DE ACCESO', 'Tu usuario no tiene perfil de unidad asignado en el sistema. Contacte al administrador.', 'error');
         }
       } catch (err) {
         console.error('Error recuperando perfil:', err);
       }
     }
 
-    // Si todo está bien, mostrar datos
-    const fullName = `${localStorage.getItem('userName') || ''} ${localStorage.getItem('userLastName') || ''}`.trim();
-    const client = localStorage.getItem('userClient') || '---';
-    const unit = localStorage.getItem('userUnit') || '---';
-    const userRole = localStorage.getItem('userType');
-
-    // VERIFICACIÓN DE SEGURIDAD: SI NO ES CLIENTE NI ADMIN, EXPULSAR
-    if (userRole && userRole !== 'cliente' && userRole !== 'admin') {
-      console.warn('Rol no autorizado detectado:', userRole);
-      await signOut(auth);
-      localStorage.clear();
-      window.location.href = '/index.html';
-      return;
-    }
-
+    // 2. Si todo está bien, mostrar datos en Header
     const userDisplay = document.getElementById('userName');
     if (userDisplay) {
-      userDisplay.textContent = `Bienvenido: ${fullName} - ${client} ${unit}`;
+      console.log('Updating user display...');
+      userDisplay.textContent = `Bienvenido: ${userFullName} - ${userClient || '---'} ${userUnit || '---'}`;
+    } else {
+      console.warn('userDisplay element (#userName) not found');
     }
 
-    // MOSTRAR NAV ITEMS ADMINISTRATIVOS SOLO SI ES ADMIN
-    if (userRole === 'admin') {
+    // 3. MOSTRAR NAV ITEMS ADMINISTRATIVOS SOLO SI ES ADMIN
+    if (userType === 'admin') {
       const navUsers = document.getElementById('nav-users');
       const navClients = document.getElementById('nav-clients');
       if (navUsers) navUsers.style.display = 'flex';
       if (navClients) navClients.style.display = 'flex';
     }
+
+    // 4. Inicializar datos que dependen de la sesión
+    inicializarDatosSession();
   }
 });
 
@@ -104,14 +126,14 @@ const mensajeDuplicidadText = document.getElementById('mensajeDuplicidad');
 
 if (btnCerrarDuplicidad) {
   btnCerrarDuplicidad.addEventListener('click', () => {
-    modalDuplicidad.classList.remove('active');
-    setTimeout(() => {
-      modalDuplicidad.style.display = 'none';
-
-      // También limpiar loading por si acaso
-      const loading = document.getElementById('loadingOverlay');
-      if (loading) loading.classList.remove('active');
-    }, 300);
+    if (modalDuplicidad) {
+      modalDuplicidad.classList.remove('active');
+      setTimeout(() => {
+        modalDuplicidad.style.display = 'none';
+        const loading = document.getElementById('loadingOverlay');
+        if (loading) loading.classList.remove('active');
+      }, 300);
+    }
   });
 }
 
@@ -120,6 +142,79 @@ let registros = [];
 let totalIngresos = 0;
 let totalSalidas = 0;
 let registroSalidaId = null; // ID del registro que se está cerrando
+
+// Función para mostrar mensajes del sistema como Modal
+window.mostrarAviso = function (titulo, mensaje, tipo = 'warning') {
+  const modal = document.getElementById('modalAviso');
+  const card = document.getElementById('avisoCard');
+  const titleEl = document.getElementById('avisoTitulo');
+  const msgEl = document.getElementById('avisoMensaje');
+  const iconCont = document.getElementById('avisoIconContainer');
+
+  if (!modal || !card || !titleEl || !msgEl) return;
+
+  // Limpiar clases previas
+  card.classList.remove('warning-border', 'error-border', 'success-border');
+
+  // Estilo según tipo
+  let iconHtml = '';
+  if (tipo === 'error') {
+    card.classList.add('error-border');
+    titleEl.style.color = 'var(--accent-red)';
+    iconHtml = `<svg width="60" height="60" viewBox="0 0 24 24" fill="none" class="error-icon" stroke="var(--accent-red)" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>`;
+  } else if (tipo === 'success') {
+    card.classList.add('success-border');
+    titleEl.style.color = '#00d964';
+    iconHtml = `<svg width="60" height="60" viewBox="0 0 24 24" fill="none" class="success-icon" stroke="#00d964" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>`;
+  } else {
+    card.classList.add('warning-border');
+    titleEl.style.color = 'var(--primary-cyan)';
+    iconHtml = `<svg width="60" height="60" viewBox="0 0 24 24" fill="none" class="warning-icon" stroke="var(--primary-cyan)" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`;
+  }
+
+  titleEl.textContent = titulo.toUpperCase();
+  msgEl.textContent = mensaje;
+  iconCont.innerHTML = iconHtml;
+
+  abrirModal('modalAviso');
+};
+
+// Función asincrónica para mostrar modal de confirmación
+window.mostrarConfirmacion = function (titulo, mensaje) {
+  return new Promise((resolve) => {
+    const modal = document.getElementById('modalConfirmacion');
+    const titleEl = document.getElementById('confirmTitulo');
+    const msgEl = document.getElementById('confirmMensaje');
+    const btnSi = document.getElementById('btnConfirmSi');
+    const btnNo = document.getElementById('btnConfirmNo');
+
+    if (!modal) {
+      resolve(confirm(mensaje)); // fallback
+      return;
+    }
+
+    titleEl.textContent = titulo.toUpperCase();
+    msgEl.textContent = mensaje;
+
+    const hideAndResolve = (result) => {
+      window.cerrarModal('modalConfirmacion');
+      // Limpiamos los eventos clonando los botones (o removiendo listeners si los guardáramos, pero esta forma es más directa)
+      const newBtnSi = btnSi.cloneNode(true);
+      const newBtnNo = btnNo.cloneNode(true);
+      btnSi.parentNode.replaceChild(newBtnSi, btnSi);
+      btnNo.parentNode.replaceChild(newBtnNo, btnNo);
+
+      newBtnSi.addEventListener('click', () => hideAndResolve(true)); // solo por si acaso
+      resolve(result);
+    };
+
+    // Agregar listeners puros
+    btnSi.onclick = () => hideAndResolve(true);
+    btnNo.onclick = () => hideAndResolve(false);
+
+    window.abrirModal('modalConfirmacion');
+  });
+};
 
 // Función para mostrar notificaciones
 function showNotification(message, type = 'info') {
@@ -183,144 +278,108 @@ function showNotification(message, type = 'info') {
 
   notificationContainer.appendChild(notification);
 
-  // Auto-eliminar después de 4 segundos
-  setTimeout(() => {
-    notification.style.animation = 'slideOut 0.3s ease-out';
-    setTimeout(() => notification.remove(), 300);
-  }, 4000);
+  // No auto-eliminar si type es error para que el usuario lo vea bien
+  if (type !== 'error') {
+    setTimeout(() => {
+      notification.style.animation = 'slideOut 0.3s ease-out';
+      setTimeout(() => notification.remove(), 300);
+    }, 4000);
+  } else {
+    // Botón para cerrar manual si es error
+    const closeBtn = document.createElement('button');
+    closeBtn.textContent = '✕';
+    closeBtn.style.cssText = 'background:none; border:none; color:inherit; cursor:pointer; font-weight:bold; margin-left:auto;';
+    closeBtn.onclick = () => notification.remove();
+    notification.appendChild(closeBtn);
+  }
 }
 
 // Cerrar sesión
-btnLogout.addEventListener('click', async () => {
-  try {
-    await signOut(auth);
-    localStorage.clear(); // Limpieza total de sesión
-    window.location.href = './index.html';
-  } catch (error) {
-    console.error('Error al cerrar sesión:', error);
-    showNotification('Error al cerrar sesión', 'error');
-  }
-});
+if (btnLogout) {
+  console.log('Attaching logout listener...');
+  btnLogout.addEventListener('click', async () => {
+    console.log('Logout clicked');
+    try {
+      await signOut(auth);
+      localStorage.clear();
+      window.location.href = './index.html';
+    } catch (error) {
+      console.error('Error al cerrar sesión:', error);
+      showNotification('Error al cerrar sesión', 'error');
+    }
+  });
+} else {
+  console.warn('btnLogout not found');
+}
 
 // Listener para cambio de Tipo de Acceso
 const radiosTipoAcceso = document.querySelectorAll('input[name="tipoAcceso"]');
 radiosTipoAcceso.forEach(radio => {
   radio.addEventListener('change', (e) => {
     limpiarFormulario(); // Limpiar todo al cambiar modo
-
+    const rowPase = document.getElementById('row-pase');
     if (e.target.value === 'salida') {
-      toggleModoSalida(true);
+      if (rowPase) rowPase.style.display = 'block';
+      showNotification('Modo SALIDA: Busque por Documento y Nro de Pase', 'info');
     } else {
-      toggleModoSalida(false);
+      if (rowPase) rowPase.style.display = 'none';
+      if (dniInput) dniInput.placeholder = "Ingrese DNI";
     }
   });
 });
 
-// Función para cambiar la UI según modo Salida
-function toggleModoSalida(esSalida) {
-  // Campos a bloquear/desbloquear
-  const campos = [
-    'nombreCompleto',
-    'motivoIngreso',
-    'empresa',
-    'personaContacto',
-    'observaciones'
+// Función para limpiar campos
+function limpiarFormulario() {
+  if (dniInput) dniInput.value = '';
+  const nroPaseBus = document.getElementById('nroPaseBusqueda');
+  if (nroPaseBus) nroPaseBus.value = '';
+
+  // Limpiar campos de todos los modales (solo si existen)
+  const elements = [
+    'motivoIngreso', 'empresa', 'personaContacto', 'observaciones', 'nroPase',
+    'mIngresoDni', 'mIngresoNombre', 'mIngresoMotivo', 'mIngresoEmpresa', 'mIngresoContacto', 'mIngresoPase', 'mIngresoObs',
+    'mSalidaObsSalida', 'mManualDocumento', 'mManualNombre', 'mManualMotivo', 'mManualEmpresa', 'mManualContacto', 'mManualPase', 'mManualObs'
   ];
 
-  // Radios de Tipo de Persona
-  const radiosTipoPersona = document.querySelectorAll('input[name="tipoPersona"]');
+  elements.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
 
-  if (esSalida) {
-    // Modo SALIDA
-    btnRegistrar.innerHTML = `
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
-        <polyline points="16 17 21 12 16 7"></polyline>
-        <line x1="21" y1="12" x2="9" y2="12"></line>
-      </svg>
-      REGISTRAR SALIDA
-    `;
-
-    // Bloquear campos
-    campos.forEach(id => {
-      document.getElementById(id).readOnly = true;
-    });
-
-    // Deshabilitar radios de tipo persona (se llenarán auto)
-    radiosTipoPersona.forEach(r => r.disabled = true);
-
-    // Checkbox extranjería
-    carnetExtranjeriaCheckbox.disabled = true;
-
-    showNotification('Modo SALIDA: Busque por DNI para cargar datos', 'info');
-
-  } else {
-    // Modo INGRESO (Restaurar)
-    btnRegistrar.innerHTML = `
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
-        <polyline points="17 21 17 13 7 13 7 21"></polyline>
-        <polyline points="7 3 7 8 15 8"></polyline>
-      </svg>
-      Registrar
-    `;
-
-    // Desbloquear campos
-    campos.forEach(id => {
-      // nombreCompleto sigue readonly siempre (se llena por RENIEC)
-      if (id !== 'nombreCompleto') document.getElementById(id).readOnly = false;
-    });
-
-    // Habilitar radios
-    radiosTipoPersona.forEach(r => r.disabled = false);
-    carnetExtranjeriaCheckbox.disabled = false;
-  }
+  updateTrafficLight('yellow');
 }
 
 // === LÓGICA CARNET EXTRANJERÍA ===
 if (carnetExtranjeriaCheckbox) {
   carnetExtranjeriaCheckbox.addEventListener('change', () => {
     const isChecked = carnetExtranjeriaCheckbox.checked;
+    const tipoAcceso = document.querySelector('input[name="tipoAcceso"]:checked').value;
 
     if (isChecked) {
-      // MODO CARNET: Alfanumérico, Manual, Sin Búsqueda
-      dniInput.placeholder = "Ingrese Documento (Alfanumérico)";
-      dniInput.removeAttribute('maxlength');
-      dniInput.removeAttribute('pattern');
-
-      btnBuscarDNI.disabled = true;
-      btnBuscarDNI.style.opacity = "0.5";
-      btnBuscarDNI.style.cursor = "not-allowed";
-
-      nombreCompletoInput.readOnly = false;
-      nombreCompletoInput.placeholder = "Escriba Nombres y Apellidos";
-      nombreCompletoInput.focus();
-
-      showNotification('Modo Carnet Extranjería: Ingreso manual habilitado', 'info');
+      if (tipoAcceso === 'ingreso') {
+        // Abrir modal manual de inmediato para ingreso
+        window.abrirModal('modalManual');
+        // Reset checkbox
+        carnetExtranjeriaCheckbox.checked = false;
+      } else {
+        // En salida solo cambia el placeholder
+        dniInput.placeholder = "Carnet Extranjería";
+        showNotification('Modo SALIDA (Carnet): Ingrese Carnet y Nro de Pase', 'info');
+      }
     } else {
-      // MODO DNI: Numérico, 8 dígitos, Búsqueda obligatoria
       dniInput.placeholder = "Ingrese DNI";
-      dniInput.setAttribute('maxlength', '8');
-      dniInput.setAttribute('pattern', '[0-9]{8}');
-      dniInput.value = dniInput.value.replace(/\D/g, '').substring(0, 8); // Limpiar si había texto
-
-      btnBuscarDNI.disabled = false;
-      btnBuscarDNI.style.opacity = "1";
-      btnBuscarDNI.style.cursor = "pointer";
-
-      nombreCompletoInput.readOnly = true;
-      nombreCompletoInput.placeholder = "Nombres y Apellidos";
-      nombreCompletoInput.value = "";
     }
   });
 
   // Forzar Mayúsculas en tiempo real para DNI y Nombre Completo
   [dniInput, nombreCompletoInput].forEach(input => {
-    input.addEventListener('input', () => {
-      if (carnetExtranjeriaCheckbox.checked) {
-        input.value = input.value.toUpperCase();
-      }
-    });
+    if (input) {
+      input.addEventListener('input', () => {
+        if (carnetExtranjeriaCheckbox && carnetExtranjeriaCheckbox.checked) {
+          input.value = input.value.toUpperCase();
+        }
+      });
+    }
   });
 }
 
@@ -345,137 +404,106 @@ function hideLoading() {
   }
 }
 
-// Buscar DNI (Estrategia Híbrida: Firestore Cache -> RENIEC)
+// Buscar Documento (Boton Lupa)
 btnBuscarDNI.addEventListener('click', async () => {
   const dni = dniInput.value.trim();
+  const nroPaseBusqueda = document.getElementById('nroPaseBusqueda').value.trim();
+  const tipoAcceso = document.querySelector('input[name="tipoAcceso"]:checked').value;
+  const isCarnet = carnetExtranjeriaCheckbox.checked;
 
-  if (!dni) {
-    showNotification('Por favor, ingrese un número de DNI', 'warning');
+  if (tipoAcceso === 'ingreso' && !dni) {
+    showNotification('Por favor, ingrese el documento', 'warning');
     dniInput.focus();
     return;
   }
 
-  // Si es Carnet de Extranjería, no debería llegar aquí porque el botón está disabled,
-  // pero agregamos el chequeo por seguridad.
-  if (carnetExtranjeriaCheckbox.checked) return;
-
-  if (dni.length !== 8 || !/^\d+$/.test(dni)) {
-    showNotification('El DNI debe tener 8 dígitos numéricos', 'warning');
+  if (tipoAcceso === 'salida' && !dni && !nroPaseBusqueda) {
+    showNotification('Ingrese Documento o Nro de Pase para buscar', 'warning');
     dniInput.focus();
     return;
   }
 
-  // UI Loading
-  btnBuscarDNI.disabled = true;
-  showLoading(); // Mostrar Overlay Espiral
-
+  showLoading();
   try {
-    const tipoAcceso = document.querySelector('input[name="tipoAcceso"]:checked').value;
-
     if (tipoAcceso === 'ingreso') {
-      // === MODO INGRESO: Buscamos primero en historial local (Ahorro de API) ===
-      console.log('Modo INGRESO: Buscando en historial local...');
+      // BUSQUEDA PARA INGRESO
+      if (isCarnet) return; // Ya se manejó al marcar el check
 
-      const qHistorial = query(
-        collection(db, 'accesos'),
-        where('numeroDocumento', '==', dni),
-        orderBy('timestamp', 'desc'),
-        limit(1)
-      );
-
+      // Buscar en Firestore (Cache)
+      const qHistorial = query(collection(db, 'accesos'), where('numeroDocumento', '==', dni), orderBy('timestamp', 'desc'), limit(1));
       const snapshotHistorial = await getDocs(qHistorial);
+      let nombreEncontrado = "";
 
       if (!snapshotHistorial.empty) {
-        // ENCONTRADO EN CACHÉ LOCAL
-        const data = snapshotHistorial.docs[0].data();
-        console.log('Encontrado en historial:', data.nombreCompleto);
-
-        nombreCompletoInput.value = data.nombreCompleto;
-
-        // Opcional: Sugerir datos anteriores (autofill inteligente)
-        if (data.empresa) document.getElementById('empresa').value = data.empresa;
-        if (data.tipoPersona) {
-          const radio = document.querySelector(`input[name="tipoPersona"][value="${data.tipoPersona}"]`);
-          if (radio) radio.checked = true;
-        }
-
-        showNotification('Datos recuperados del historial ✔', 'success');
-        updateTrafficLight('green');
-
+        nombreEncontrado = snapshotHistorial.docs[0].data().nombreCompleto;
+        showNotification('Nombre obtenido del historial ✔', 'success');
       } else {
-        // NO ENCONTRADO -> LLAMAR A RENIEC (VIA CLOUD FUNCTION)
-        console.log('No encontrado en historial. Consultando RENIEC vía Cloud Functions...');
-
+        // Consultar RENIEC
         const { functions, httpsCallable } = await import('./firebase.js');
         const buscarDNICallable = httpsCallable(functions, 'buscarDNI');
-
         const result = await buscarDNICallable({ dni });
-
         if (result.data && result.data.success) {
-          nombreCompletoInput.value = result.data.data.nombre;
-          showNotification('DNI válido. Datos obtenidos de RENIEC.', 'success');
-          updateTrafficLight('green');
+          nombreEncontrado = result.data.data.nombre;
+          showNotification('Nombre obtenido de RENIEC ✔', 'success');
         } else {
-          throw new Error('DNI no encontrado o error en RENIEC.');
+          mostrarAviso('REGISTRO NO ENCONTRADO', 'No se encontró información para el documento ingresado en el historial ni en RENIEC. Por favor, realice un registro manual si es necesario.', 'warning');
+          return;
         }
       }
 
+      // Llenar modal ingreso
+      document.getElementById('mIngresoDni').value = dni;
+      document.getElementById('mIngresoNombre').value = nombreEncontrado;
+      document.getElementById('mIngresoMotivo').value = "";
+      document.getElementById('mIngresoEmpresa').value = "";
+      document.getElementById('mIngresoContacto').value = "";
+      document.getElementById('mIngresoPase').value = "";
+      document.getElementById('mIngresoObs').value = "";
+      abrirModal('modalIngreso');
+
     } else {
-      // === MODO SALIDA: Buscar ingreso activo (FILTRADO POR UNIDAD) ===
-      console.log('Modo SALIDA: Buscando ingreso activo para DNI:', dni);
-
-      const q = query(
-        collection(db, 'accesos'),
-        where('numeroDocumento', '==', dni),
+      // BUSQUEDA PARA SALIDA
+      const queries = [
         where('estado', '==', 'Activo'),
-        where('cliente', '==', userClient), // Seguridad: Solo mi cliente
-        where('unidad', '==', userUnit),     // Seguridad: Solo mi unidad
-        orderBy('timestamp', 'desc'),
-        limit(1)
-      );
+        where('cliente', '==', userClient),
+        where('unidad', '==', userUnit)
+      ];
 
-      const querySnapshot = await getDocs(q);
-
-      if (querySnapshot.empty) {
-        throw new Error('No se encontró un ingreso ACTIVO para este DNI.');
+      // Construir filtro OR dinámico
+      if (dni && nroPaseBusqueda) {
+        queries.push(or(where('numeroDocumento', '==', dni), where('nroPase', '==', nroPaseBusqueda)));
+      } else if (dni) {
+        queries.push(where('numeroDocumento', '==', dni));
+      } else {
+        queries.push(where('nroPase', '==', nroPaseBusqueda));
       }
 
-      const doc = querySnapshot.docs[0];
-      const data = doc.data();
-      registroSalidaId = doc.id;
+      const q = query(collection(db, 'accesos'), ...queries, limit(1));
 
-      // Rellenar campos
-      nombreCompletoInput.value = data.nombreCompleto;
-      document.getElementById('motivoIngreso').value = data.motivoIngreso || '';
-      document.getElementById('empresa').value = data.empresa || '';
-      document.getElementById('personaContacto').value = data.personaContacto || '';
-      document.getElementById('observaciones').value = data.observaciones || '';
-      document.getElementById('nroPase').value = data.nroPase || '';
-
-      if (data.tipoPersona) {
-        const radio = document.querySelector(`input[name="tipoPersona"][value="${data.tipoPersona}"]`);
-        if (radio) radio.checked = true;
+      const snapshot = await getDocs(q);
+      if (snapshot.empty) {
+        throw new Error('No se encontró un ingreso ACTIVO con esos datos.');
       }
 
-      showNotification('Ingreso activo encontrado. Registre salida.', 'info');
-      updateTrafficLight('green');
+      const docSalida = snapshot.docs[0];
+      const data = docSalida.data();
+      registroSalidaId = docSalida.id;
+
+      // Llenar modal salida
+      document.getElementById('mSalidaDni').value = data.numeroDocumento;
+      document.getElementById('mSalidaNombre').value = data.nombreCompleto;
+      document.getElementById('mSalidaMotivo').value = data.motivoIngreso || "";
+      document.getElementById('mSalidaEmpresa').value = data.empresa || "";
+      document.getElementById('mSalidaContacto').value = data.personaContacto || "";
+      document.getElementById('mSalidaPase').value = data.nroPase || "";
+      document.getElementById('mSalidaObsSalida').value = "";
+      abrirModal('modalSalida');
     }
-
-  } catch (error) {
-    console.error('Error al buscar:', error);
-    let mensaje = 'Error al realizar la búsqueda.';
-    if (error.message) mensaje = error.message;
-
-    showNotification(mensaje, 'error');
+    updateTrafficLight('green');
+  } catch (err) {
+    mostrarAviso('BÚSQUEDA FALLIDA', err.message, 'error');
     updateTrafficLight('red');
-    registroSalidaId = null;
-
-    // Limpiar campos si falló
-    if (tipoAcceso === 'ingreso') nombreCompletoInput.value = '';
-
   } finally {
-    // Rehabilitar botón y ocultar overlay
-    btnBuscarDNI.disabled = false;
     hideLoading();
   }
 });
@@ -491,10 +519,189 @@ function updateTrafficLight(color) {
   }
 }
 
+// === CONFIRMACIÓN DE INGRESO (MODAL) ===
+document.getElementById('btnConfirmarIngreso').addEventListener('click', async () => {
+  const dni = document.getElementById('mIngresoDni').value;
+  const nombre = document.getElementById('mIngresoNombre').value;
+  const motivo = document.getElementById('mIngresoMotivo').value.trim();
+  const empresa = document.getElementById('mIngresoEmpresa').value.trim();
+  const contacto = document.getElementById('mIngresoContacto').value.trim();
+  const pase = document.getElementById('mIngresoPase').value.trim();
+  const obs = document.getElementById('mIngresoObs').value.trim();
+  const tipoPersona = document.querySelector('input[name="tipoPersona"]:checked').value;
+
+  // Nro de Pase es ahora OPCIONAL
+
+  showLoading();
+  try {
+    // VALIDAR DUPLICIDAD DE DNI
+    const qDni = query(
+      collection(db, 'accesos'),
+      where('numeroDocumento', '==', dni),
+      where('estado', '==', 'Activo'),
+      where('cliente', '==', userClient),
+      where('unidad', '==', userUnit),
+      limit(1)
+    );
+    const snapDni = await getDocs(qDni);
+    if (!snapDni.empty) {
+      mostrarAviso('INGRESO ACTIVO DETECTADO', `El usuario con documento ${dni} ya cuenta con un ingreso activo en esta sede. DEBE MARCAR SU SALIDA ANTES DE UN NUEVO INGRESO.`, 'error');
+      hideLoading();
+      return;
+    }
+
+    // VALIDAR PASE DUPLICADO (SOLO SI SE INGRESÓ UNO)
+    if (pase) {
+      const qPase = query(
+        collection(db, 'accesos'),
+        where('nroPase', '==', pase.toUpperCase()),
+        where('estado', '==', 'Activo'),
+        where('cliente', '==', userClient),
+        where('unidad', '==', userUnit),
+        limit(1)
+      );
+      const snapPase = await getDocs(qPase);
+      if (!snapPase.empty) {
+        mostrarAviso('PASE EN USO', `El Nro de Pase ${pase} ya está asignado a otra persona en esta unidad.`, 'error');
+        hideLoading();
+        return;
+      }
+    }
+
+    await addDoc(collection(db, 'accesos'), {
+      numeroDocumento: dni,
+      nombreCompleto: nombre.toUpperCase(),
+      motivoIngreso: motivo.toUpperCase(),
+      empresa: empresa.toUpperCase(),
+      personaContacto: contacto.toUpperCase(),
+      nroPase: pase.toUpperCase(),
+      observaciones: obs.toUpperCase(),
+      tipoPersona: tipoPersona,
+      tipoAcceso: 'Ingreso',
+      estado: 'Activo',
+      timestamp: serverTimestamp(),
+      cliente: userClient,
+      unidad: userUnit,
+      usuarioRegistro: userFullName
+    });
+
+    showNotification('Ingreso registrado con éxito', 'success');
+    cerrarModal('modalIngreso');
+    limpiarFormulario();
+  } catch (err) {
+    mostrarAviso('ERROR DE REGISTRO', 'Hubo un fallo al intentar guardar el ingreso en la base de datos.', 'error');
+  } finally {
+    hideLoading();
+  }
+});
+
+// === CONFIRMACIÓN DE SALIDA (MODAL) ===
+document.getElementById('btnConfirmarSalida').addEventListener('click', async () => {
+  const obsSalida = document.getElementById('mSalidaObsSalida').value.trim();
+  showLoading();
+  try {
+    const ref = doc(db, 'accesos', registroSalidaId);
+    await updateDoc(ref, {
+      estado: 'Cerrado',
+      fechaSalida: serverTimestamp(),
+      observacionesSalida: obsSalida.toUpperCase(),
+      usuarioSalida: userFullName
+    });
+    showNotification('Salida registrada con éxito', 'success');
+    cerrarModal('modalSalida');
+    limpiarFormulario();
+  } catch (err) {
+    mostrarAviso('ERROR DE SALIDA', 'No se pudo registrar la salida correctamente.', 'error');
+  } finally {
+    hideLoading();
+  }
+});
+
+// === CONFIRMACIÓN MANUAL (MODAL) ===
+document.getElementById('btnConfirmarManual').addEventListener('click', async () => {
+  const dni = document.getElementById('mManualDocumento').value.trim();
+  const nombre = document.getElementById('mManualNombre').value.trim();
+  const motivo = document.getElementById('mManualMotivo').value.trim();
+  const empresa = document.getElementById('mManualEmpresa').value.trim();
+  const contacto = document.getElementById('mManualContacto').value.trim();
+  const pase = document.getElementById('mManualPase').value.trim();
+  const obs = document.getElementById('mManualObs').value.trim();
+  const tipoPersona = document.querySelector('input[name="tipoPersona"]:checked').value;
+
+  if (!dni || !nombre) {
+    mostrarAviso('DATOS INCOMPLETOS', 'Debe completar Documento y Nombre para proceder. El pase es opcional.', 'warning');
+    return;
+  }
+
+  showLoading();
+  try {
+    // VALIDAR DUPLICIDAD DE DNI
+    const qDni = query(
+      collection(db, 'accesos'),
+      where('numeroDocumento', '==', dni.toUpperCase()),
+      where('estado', '==', 'Activo'),
+      where('cliente', '==', userClient),
+      where('unidad', '==', userUnit),
+      limit(1)
+    );
+    const snapDni = await getDocs(qDni);
+    if (!snapDni.empty) {
+      mostrarAviso('INGRESO ACTIVO DETECTADO', `El usuario con documento ${dni} ya cuenta con un ingreso activo. Por seguridad, no se permiten duplicados simultáneos.`, 'error');
+      hideLoading();
+      return;
+    }
+
+    // VALIDAR PASE DUPLICADO (SOLO SI SE INGRESÓ UNO)
+    if (pase) {
+      const qPase = query(
+        collection(db, 'accesos'),
+        where('nroPase', '==', pase.toUpperCase()),
+        where('estado', '==', 'Activo'),
+        where('cliente', '==', userClient),
+        where('unidad', '==', userUnit),
+        limit(1)
+      );
+      const snapPase = await getDocs(qPase);
+      if (!snapPase.empty) {
+        mostrarAviso('PASE EN USO', `El Nro de Pase ${pase} ya está en uso por otra persona en esta unidad.`, 'error');
+        hideLoading();
+        return;
+      }
+    }
+
+    await addDoc(collection(db, 'accesos'), {
+      numeroDocumento: dni.toUpperCase(),
+      nombreCompleto: nombre.toUpperCase(),
+      motivoIngreso: motivo.toUpperCase(),
+      empresa: empresa.toUpperCase(),
+      personaContacto: contacto.toUpperCase(),
+      nroPase: pase.toUpperCase(),
+      observaciones: obs.toUpperCase(),
+      tipoPersona: tipoPersona,
+      tipoAcceso: 'Ingreso',
+      estado: 'Activo',
+      timestamp: serverTimestamp(),
+      cliente: userClient,
+      unidad: userUnit,
+      usuarioRegistro: userFullName,
+      esManual: true
+    });
+
+    showNotification('Registro manual exitoso', 'success');
+    cerrarModal('modalManual');
+    limpiarFormulario();
+  } catch (err) {
+    showNotification('Error al registrar manual', 'error');
+  } finally {
+    hideLoading();
+  }
+});
+
+
 // ==========================================
-// LÓGICA DE MODAL SALIDA
+// LÓGICA DE MODAL SALIDA SIMPLE (PASOS)
 // ==========================================
-const modalSalida = document.getElementById('modalSalida');
+const modalSalidaSimple = document.getElementById('modalSalidaSimple');
 const modalStep1 = document.getElementById('modalStep1');
 const modalStep2 = document.getElementById('modalStep2');
 const inputObservacionSalida = document.getElementById('inputObservacionSalida');
@@ -515,8 +722,8 @@ if (document.getElementById('btnSalidaSi')) {
   });
 }
 
-if (document.getElementById('btnConfirmarSalida')) {
-  document.getElementById('btnConfirmarSalida').addEventListener('click', () => {
+if (document.getElementById('btnConfirmarSalidaSimple')) {
+  document.getElementById('btnConfirmarSalidaSimple').addEventListener('click', () => {
     const obs = inputObservacionSalida.value.trim();
     const comentarioFinal = obs ? obs : 'Sin comentarios';
     cerrarModalSalida();
@@ -529,22 +736,25 @@ if (document.getElementById('btnCancelarSalida')) {
 }
 
 function cerrarModalSalida() {
-  if (!modalSalida) return;
-  modalSalida.classList.remove('active');
-  setTimeout(() => {
-    modalSalida.style.display = 'none';
-    // Resetear pasos para la próxima
-    if (modalStep1) modalStep1.style.display = 'block';
-    if (modalStep2) modalStep2.style.display = 'none';
-    if (inputObservacionSalida) inputObservacionSalida.value = '';
-  }, 300);
+  if (modalSalidaSimple) {
+    modalSalidaSimple.classList.remove('active');
+    setTimeout(() => {
+      modalSalidaSimple.style.display = 'none';
+      // Resetear pasos
+      if (modalStep1) modalStep1.style.display = 'block';
+      if (modalStep2) modalStep2.style.display = 'none';
+      if (inputObservacionSalida) inputObservacionSalida.value = '';
+    }, 300);
+  }
 }
 
+// Ya se implementaron las funciones globales window.abrirModal y window.cerrarModal al inicio
+
 function abrirModalSalida() {
-  if (modalSalida) {
-    modalSalida.style.display = 'flex';
-    modalSalida.offsetHeight; // Force reflow
-    modalSalida.classList.add('active');
+  if (modalSalidaSimple) {
+    modalSalidaSimple.style.display = 'flex';
+    modalSalidaSimple.offsetHeight; // Force reflow
+    modalSalidaSimple.classList.add('active');
   }
 }
 
@@ -672,10 +882,29 @@ btnRegistrar.addEventListener('click', async () => {
       }
     } catch (err) {
       console.error("[ERROR QUERY] Fallo al consultar duplicados:", err);
-      alert("Error de sistema (Índice faltante). Ver consola.");
+      mostrarAviso('ERROR DE SISTEMA', 'Fallo crítico al consultar duplicados. Ver consola para más detalles.', 'error');
       hideLoading();
       btnRegistrar.disabled = false;
       return;
+    }
+
+    // VALIDAR PASE DUPLICADO (SOLO SI SE INGRESÓ UNO)
+    if (nroPase) {
+      const qPase = query(
+        collection(db, 'accesos'),
+        where('nroPase', '==', nroPase.toUpperCase()),
+        where('estado', '==', 'Activo'),
+        where('cliente', '==', userClient),
+        where('unidad', '==', userUnit),
+        limit(1)
+      );
+      const snapPase = await getDocs(qPase);
+      if (!snapPase.empty) {
+        mostrarAviso('PASE EN USO', `El Nro de Pase ${nroPase} ya está asignado a otra persona en esta sede.`, 'error');
+        hideLoading();
+        btnRegistrar.disabled = false;
+        return;
+      }
     }
 
     const registro = {
@@ -711,59 +940,39 @@ btnRegistrar.addEventListener('click', async () => {
   }
 });
 
-// Limpiar formulario
-function limpiarFormulario() {
-  dniInput.value = '';
-  nombreCompletoInput.value = '';
-  document.getElementById('motivoIngreso').value = '';
-  document.getElementById('empresa').value = '';
-  document.getElementById('personaContacto').value = '';
-  document.getElementById('observaciones').value = '';
-  document.getElementById('nroPase').value = '';
 
-  // Resetear modo Carnet si estaba activo
-  if (carnetExtranjeriaCheckbox.checked) {
-    carnetExtranjeriaCheckbox.checked = false;
-    // Disparar el evento change manualmente para restaurar los campos
-    carnetExtranjeriaCheckbox.dispatchEvent(new Event('change'));
-  }
+// Escuchar cambios en la colección de accesos (Solo cuando hay sesión)
+function inicializarDatosSession() {
+  console.log('Iniciando listeners de sesión para:', userClient, userUnit);
 
-  registroSalidaId = null; // Reiniciar ID de salida
-
-  // Limpiar readonly si estamos volviendo a empezar (depende del modo actual)
-  const modoActual = document.querySelector('input[name="tipoAcceso"]:checked').value;
-  toggleModoSalida(modoActual === 'salida');
-
-  updateTrafficLight('green');
-  // Asegurar foco en DNI con un pequeño delay para evitar conflictos de UI
-  setTimeout(() => dniInput.focus(), 100);
-}
-
-// Escuchar cambios en la colección de accesos
-function inicializarListeners() {
   // Foco inicial
-  dniInput.focus();
-
-  // Listener botón Limpiar
-  if (btnLimpiar) btnLimpiar.addEventListener('click', limpiarFormulario);
+  if (dniInput) dniInput.focus();
 
   // Listener cambio Tipo Persona (para devolver foco al DNI)
   const radiosTipoPersona = document.querySelectorAll('input[name="tipoPersona"]');
   radiosTipoPersona.forEach(r => {
     r.addEventListener('change', () => {
-      dniInput.focus();
+      if (dniInput) dniInput.focus();
     });
   });
 
+  // Query principal filtrada por cliente y unidad
+  if (!userClient || !userUnit) {
+    console.warn('No se puede iniciar query: faltan cliente/unidad');
+    return;
+  }
+
   const q = query(
     collection(db, 'accesos'),
-    where('cliente', '==', userClient), // Filtrar globalmente
-    where('unidad', '==', userUnit),    // Filtrar globalmente
+    where('cliente', '==', userClient),
+    where('unidad', '==', userUnit),
     orderBy('timestamp', 'desc'),
     limit(50)
   );
 
+  showLoading(); // Iniciar carga inicial
   onSnapshot(q, (snapshot) => {
+    hideLoading(); // Ocultar al recibir datos
     registros = [];
     totalIngresos = 0;
     totalSalidas = 0;
@@ -772,12 +981,10 @@ function inicializarListeners() {
       const data = doc.data();
       registros.push({ id: doc.id, ...data });
 
-      // Contar como ingreso si el registro original fue un ingreso
-      if (data.tipoAcceso === 'ingreso') {
+      if (data.tipoAcceso === 'Ingreso' || data.tipoAcceso === 'ingreso') {
         totalIngresos++;
       }
 
-      // Contar como salida si el estado es Cerrado (ya salió)
       if (data.estado === 'Cerrado') {
         totalSalidas++;
       }
@@ -785,7 +992,17 @@ function inicializarListeners() {
 
     actualizarTabla();
     actualizarEstadisticas();
+  }, (error) => {
+    console.error('Error en onSnapshot:', error);
+    if (error.code === 'permission-denied') {
+      showNotification('Error de permisos al cargar registros', 'error');
+    }
   });
+}
+
+function inicializarListeners() {
+  // Listener botón Limpiar
+  if (btnLimpiar) btnLimpiar.addEventListener('click', limpiarFormulario);
 }
 
 // Actualizar tabla
@@ -819,9 +1036,23 @@ function actualizarTabla() {
       });
     }
 
+    // Formatear fecha salida
+    let fechaSalidaFormateada = '-';
+    if (registro.fechaSalida) {
+      const fechaS = registro.fechaSalida.toDate();
+      fechaSalidaFormateada = fechaS.toLocaleString('es-PE', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    }
+
     tr.innerHTML = `
       <td data-label="Fecha Ingreso">${fechaFormateada}</td>
-      <td data-label="Tipo">${registro.tipoAcceso === 'ingreso' ? 'Ingreso' : 'Salida'}</td>
+      <td data-label="Fecha Salida">${fechaSalidaFormateada}</td>
+      <td data-label="Nro de Pase">${registro.nroPase || '-'}</td>
       <td data-label="Nro Documento">${registro.numeroDocumento}</td>
       <td data-label="Nombre">${registro.nombreCompleto}</td>
       <td data-label="Empresa">${registro.empresa || '-'}</td>
@@ -841,8 +1072,8 @@ function actualizarTabla() {
 
 // Actualizar estadísticas
 function actualizarEstadisticas() {
-  totalIngresosEl.textContent = totalIngresos;
-  totalSalidasEl.textContent = totalSalidas;
+  if (totalIngresosEl) totalIngresosEl.textContent = totalIngresos;
+  if (totalSalidasEl) totalSalidasEl.textContent = totalSalidas;
 }
 
 // Animación de partículas en el fondo
@@ -897,23 +1128,47 @@ createFloatingParticles();
 inicializarListeners();
 inicializarNavegacion();
 inicializarConectividad();
+inicializarForzadoMayusculas();
 
 // --- LÓGICA DE CONECTIVIDAD ---
 function inicializarConectividad() {
-  const statusEl = document.getElementById('connectionStatus');
-  if (!statusEl) return;
+  const connectionStatus = document.getElementById('connectionStatus');
 
   function updateStatus() {
     if (navigator.onLine) {
-      statusEl.innerHTML = '<span class="status-dot online"></span> En Línea';
+      if (connectionStatus) {
+        connectionStatus.innerHTML = '<span class="status-dot online"></span> En Línea';
+        connectionStatus.style.color = 'var(--primary-cyan)';
+      }
     } else {
-      statusEl.innerHTML = '<span class="status-dot offline"></span> Desconectado';
+      if (connectionStatus) {
+        connectionStatus.innerHTML = '<span class="status-dot offline"></span> Desconectado';
+        connectionStatus.style.color = 'var(--accent-red)';
+      }
     }
   }
 
   window.addEventListener('online', updateStatus);
   window.addEventListener('offline', updateStatus);
   updateStatus();
+}
+
+// --- FORZADO DE MAYÚSCULAS ---
+function inicializarForzadoMayusculas() {
+  const selector = 'input[type="text"], textarea, input[type="search"]';
+
+  // Delegación de eventos para capturar incluso elementos dinámicos
+  document.addEventListener('input', (e) => {
+    if (e.target.matches(selector)) {
+      // Excepto campos de contraseña o emails si los hubiera (en este caso no parece haber email inputs)
+      if (e.target.id === 'userPass' || e.target.id === 'userPassConfirm') return;
+
+      const start = e.target.selectionStart;
+      const end = e.target.selectionEnd;
+      e.target.value = e.target.value.toUpperCase();
+      e.target.setSelectionRange(start, end);
+    }
+  });
 }
 
 // Permitir solo números en el campo DNI y BÚSQUEDA AUTOMÁTICA (Scanner)
@@ -938,6 +1193,13 @@ dniInput.addEventListener('keypress', (e) => {
     }
   }
 });
+
+// Función para alternar modo salida (Helper)
+function toggleModoSalida(isSalida) {
+  const rowPase = document.getElementById('row-pase');
+  if (rowPase) rowPase.style.display = isSalida ? 'block' : 'none';
+  if (dniInput) dniInput.placeholder = isSalida ? "Documento + Nro Pase" : "Ingrese DNI";
+}
 
 // ==========================================
 // LÓGICA DE NAVEGACIÓN Y DASHBOARD
@@ -996,10 +1258,12 @@ function inicializarNavegacion() {
 
       // 4. Carga de datos según la sección
       if (targetId === 'view-dashboard') {
-        const dateInput = document.getElementById('filterDate');
-        if (dateInput && !dateInput.value) {
-          dateInput.valueAsDate = new Date();
-        }
+        const startInput = document.getElementById('filterStartDate');
+        const endInput = document.getElementById('filterEndDate');
+        const today = new Date().toISOString().split('T')[0];
+        if (startInput && !startInput.value) startInput.value = today;
+        if (endInput && !endInput.value) endInput.value = today;
+        popularFiltrosDashboard();
         cargarDashboard();
       } else if (targetId === 'view-management') {
         cargarUsuariosTable();
@@ -1020,32 +1284,112 @@ function inicializarNavegacion() {
 // Variables globales para dashboard
 let dashboardData = []; // Datos crudos para exportar
 
-async function cargarDashboard() {
-  const dateInput = document.getElementById('filterDate').value;
-  if (!dateInput) return;
+async function popularFiltrosDashboard() {
+  const filterClient = document.getElementById('filterClient');
+  const filterUnit = document.getElementById('filterUnit');
+  const userType = localStorage.getItem('userType');
 
-  // Como es input date, viene en formato YYYY-MM-DD.
-  // Vamos a tomar ese MES para los gráficos.
-  // "Indicadores de barra... ingresos y salidas diarias" sugiere ver el mes completo.
+  if (!filterClient || !filterUnit) return;
 
-  const selectedDate = new Date(dateInput + 'T00:00:00'); // Asegurar hora local
-
-  // Definir rango: Todo el mes seleccionado
-  const startOfMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1);
-  const endOfMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth() + 1, 0, 23, 59, 59);
-
-  showNotification('Cargando datos del mes...', 'info');
+  // Limpiar y resetear
+  filterClient.innerHTML = '<option value="TODOS">TODOS LOS CLIENTES</option>';
+  filterUnit.innerHTML = '<option value="TODOS">TODAS LAS UNIDADES</option>';
 
   try {
-    const q = query(
-      collection(db, 'accesos'),
-      where('cliente', '==', userClient), // Filtrar dashboard
-      where('unidad', '==', userUnit),    // Filtrar dashboard
-      where('timestamp', '>=', Timestamp.fromDate(startOfMonth)),
-      where('timestamp', '<=', Timestamp.fromDate(endOfMonth)),
-      orderBy('timestamp', 'desc')
-    );
+    const q = query(collection(db, 'clientes'));
+    const snapshot = await getDocs(q);
+    const clientsData = {};
 
+    snapshot.forEach(docSnap => {
+      const clientName = docSnap.id;
+      const data = docSnap.data();
+      const units = Object.entries(data)
+        .filter(([k, v]) => !isNaN(k) && typeof v === 'string')
+        .map(([k, v]) => v)
+        .sort();
+      clientsData[clientName] = units;
+    });
+
+    // Si es admin, puede ver todo. Si es cliente, solo lo suyo.
+    if (userType === 'admin') {
+      Object.keys(clientsData).sort().forEach(client => {
+        const opt = document.createElement('option');
+        opt.value = client;
+        opt.textContent = client;
+        filterClient.appendChild(opt);
+      });
+
+      filterClient.onchange = () => {
+        filterUnit.innerHTML = '<option value="TODOS">TODAS LAS UNIDADES</option>';
+        const selectedClient = filterClient.value;
+        if (selectedClient !== 'TODOS' && clientsData[selectedClient]) {
+          clientsData[selectedClient].forEach(unit => {
+            const opt = document.createElement('option');
+            opt.value = unit;
+            opt.textContent = unit;
+            filterUnit.appendChild(opt);
+          });
+        }
+      };
+    } else {
+      // Es rol cliente, restringir
+      filterClient.innerHTML = `<option value="${userClient}">${userClient}</option>`;
+      filterClient.disabled = true;
+
+      if (clientsData[userClient]) {
+        clientsData[userClient].forEach(unit => {
+          const opt = document.createElement('option');
+          opt.value = unit;
+          opt.textContent = unit;
+          filterUnit.appendChild(opt);
+        });
+      }
+    }
+  } catch (error) {
+    console.error('Error populando filtros:', error);
+  }
+}
+
+async function cargarDashboard() {
+  const startDate = document.getElementById('filterStartDate').value;
+  const endDate = document.getElementById('filterEndDate').value;
+  const clientFilter = document.getElementById('filterClient').value;
+  const unitFilter = document.getElementById('filterUnit').value;
+
+  if (!startDate || !endDate) {
+    showNotification('Por favor seleccione el rango de fechas', 'warning');
+    return;
+  }
+
+  // Definir rango: desde las 00:00:00 del inicio hasta las 23:59:59 del fin
+  const start = new Date(startDate + 'T00:00:00');
+  const end = new Date(endDate + 'T23:59:59');
+
+  if (end < start) {
+    showNotification('La fecha final no puede ser anterior a la inicial', 'warning');
+    return;
+  }
+
+  showNotification('Cargando indicadores...', 'info');
+
+  try {
+    let qParts = [
+      collection(db, 'accesos'),
+      where('timestamp', '>=', Timestamp.fromDate(start)),
+      where('timestamp', '<=', Timestamp.fromDate(end))
+    ];
+
+    // Aplicar filtros de cliente/unidad si no es "TODOS"
+    if (clientFilter !== 'TODOS') {
+      qParts.push(where('cliente', '==', clientFilter));
+    }
+    if (unitFilter !== 'TODOS') {
+      qParts.push(where('unidad', '==', unitFilter));
+    }
+
+    qParts.push(orderBy('timestamp', 'desc'));
+
+    const q = query(...qParts);
     const snapshot = await getDocs(q);
     dashboardData = [];
 
@@ -1059,7 +1403,11 @@ async function cargarDashboard() {
 
   } catch (error) {
     console.error('Error cargando dashboard:', error);
-    showNotification('Error al cargar datos. Verifique conexión.', 'error');
+    if (error.code === 'failed-precondition') {
+      showNotification('Error: Falta índice en Firestore para estos filtros.', 'error');
+    } else {
+      showNotification('Error al cargar datos. Verifique conexión.', 'error');
+    }
   }
 }
 
@@ -1111,9 +1459,11 @@ function exportarExcel() {
   const ws = XLSX.utils.json_to_sheet(datosExcel);
   XLSX.utils.book_append_sheet(wb, ws, "Registros");
 
-  // Guardar y descargar
-  XLSX.utils.book_append_sheet(wb, ws, 'Registros');
-  XLSX.writeFile(wb, `Reporte_Accesos_${new Date().toISOString().slice(0, 10)}.xlsx`);
+  // Generar nombre de archivo
+  const fechaStr = new Date().toISOString().slice(0, 10);
+  XLSX.writeFile(wb, `Reporte_Accesos_${fechaStr}.xlsx`);
+
+  showNotification('Excel generado correctamente', 'success');
 }
 
 // ==========================================
@@ -1305,6 +1655,7 @@ async function cargarUsuariosTable() {
         <td>${u.apellidos || '-'}</td>
         <td>${u.cliente || '-'}</td>
         <td>${u.unidad || '-'}</td>
+        <td>${u.puesto || '-'}</td>
         <td><span class="status-badge ${u.tipo}">${u.tipo || 'cliente'}</span></td>
         <td class="actions-cell">
           <button class="btn-icon-only edit-user" data-id="${id}" title="Editar">
@@ -1366,6 +1717,7 @@ async function abrirModalUsuario(userId = null) {
         document.getElementById('userDni').readOnly = true;
         document.getElementById('userNames').value = u.nombres || '';
         document.getElementById('userLastNames').value = u.apellidos || '';
+        document.getElementById('userPuesto').value = u.puesto || '';
         document.getElementById('userClient').value = u.cliente || '';
         document.getElementById('userUnit').value = u.unidad || '';
         document.getElementById('userRole').value = u.tipo || 'cliente';
@@ -1405,6 +1757,7 @@ async function guardarUsuario(e) {
   const userData = {
     nombres: document.getElementById('userNames').value.toUpperCase(),
     apellidos: document.getElementById('userLastNames').value.toUpperCase(),
+    puesto: document.getElementById('userPuesto').value.toUpperCase(),
     cliente: document.getElementById('userClient').value.toUpperCase(),
     unidad: document.getElementById('userUnit').value.toUpperCase(),
     tipo: document.getElementById('userRole').value
@@ -1486,7 +1839,16 @@ async function cargarClientesTable() {
         <td style="font-weight: bold; color: var(--primary-cyan);">${clienteId}</td>
         <td>
           <div style="display: flex; flex-wrap: wrap; gap: 5px;">
-            ${unidades.map(u => `<span class="badge" style="background: rgba(0, 217, 255, 0.1); border: 1px solid rgba(0, 217, 255, 0.2); padding: 2px 8px; border-radius: 4px; font-size: 0.8rem;">${u}</span>`).join('')}
+            ${unidades.map(u => `
+              <span class="badge-with-delete" style="background: rgba(0, 217, 255, 0.1); border: 1px solid rgba(0, 217, 255, 0.2); padding: 4px 10px; border-radius: 6px; font-size: 0.8rem;">
+                ${u}
+                <button class="badge-delete-btn" onclick="eliminarUnidadCliente('${clienteId}', '${u}')" title="Eliminar Unidad">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M18 6L6 18M6 6l12 12"></path>
+                  </svg>
+                </button>
+              </span>
+            `).join('')}
           </div>
         </td>
         <td>
@@ -1520,7 +1882,12 @@ async function cargarClientesTable() {
 
 // Global para que sea accesible desde el HTML
 window.confirmarEliminarCliente = async function (clienteId) {
-  if (confirm(`¿Estás seguro de eliminar al cliente ${clienteId} y todas sus unidades?`)) {
+  const isConfirmed = await window.mostrarConfirmacion(
+    'CONFIRMAR ELIMINACIÓN',
+    `¿Estás seguro de eliminar al cliente ${clienteId} y todas sus unidades?`
+  );
+
+  if (isConfirmed) {
     try {
       const { deleteDoc, doc } = await import('firebase/firestore');
       await deleteDoc(doc(db, 'clientes', clienteId));
@@ -1533,9 +1900,44 @@ window.confirmarEliminarCliente = async function (clienteId) {
   }
 };
 
+window.eliminarUnidadCliente = async function (clienteId, unidadAElminar) {
+  const isConfirmed = await window.mostrarConfirmacion(
+    'ELIMINAR UNIDAD',
+    `¿Está seguro de eliminar la unidad "${unidadAElminar}" del cliente ${clienteId}?`
+  );
+
+  if (isConfirmed) {
+    showLoading();
+    try {
+      const { getDoc, setDoc, doc } = await import('firebase/firestore');
+      const docRef = doc(db, 'clientes', clienteId);
+      const snap = await getDoc(docRef);
+      if (snap.exists()) {
+        const data = snap.data();
+        const units = Object.entries(data)
+          .filter(([k, v]) => !isNaN(k) && typeof v === 'string')
+          .map(([k, v]) => v)
+          .filter(u => u !== unidadAElminar);
+
+        const newData = {};
+        units.forEach((u, i) => { newData[String(i + 1)] = u; });
+
+        await setDoc(docRef, newData);
+        showNotification(`Unidad ${unidadAElminar} eliminada`, 'success');
+        cargarClientesTable();
+      }
+    } catch (e) {
+      console.error(e);
+      window.mostrarAviso('ERROR', 'No se pudo eliminar la unidad', 'error');
+    } finally {
+      hideLoading();
+    }
+  }
+};
+
 let editingClientId = null;
 
-async function abrirModalCliente(clienteId = null) {
+window.abrirModalCliente = async function (clienteId = null) {
   const modal = document.getElementById('modalClient');
   const form = document.getElementById('formClient');
   const container = document.getElementById('unitsContainer');
@@ -1648,6 +2050,7 @@ document.getElementById('formClient')?.addEventListener('submit', async (e) => {
     }
   });
 
+  showLoading();
   try {
     const { setDoc, doc } = await import('firebase/firestore');
     await setDoc(doc(db, 'clientes', clientName), data);
@@ -1662,6 +2065,8 @@ document.getElementById('formClient')?.addEventListener('submit', async (e) => {
   } catch (error) {
     console.error('Error Guardar Cliente:', error);
     showNotification('Error al guardar cliente', 'error');
+  } finally {
+    hideLoading();
   }
 });
 
@@ -1702,6 +2107,7 @@ document.getElementById('formUnitAdd')?.addEventListener('submit', async (e) => 
 
   if (!clienteId) return;
 
+  showLoading();
   try {
     const { getDoc, updateDoc, doc } = await import('firebase/firestore');
     const docRef = doc(db, 'clientes', clienteId);
@@ -1731,6 +2137,8 @@ document.getElementById('formUnitAdd')?.addEventListener('submit', async (e) => 
   } catch (error) {
     console.error('Error Update Units:', error);
     showNotification('Error al actualizar unidades', 'error');
+  } finally {
+    hideLoading();
   }
 });
 
