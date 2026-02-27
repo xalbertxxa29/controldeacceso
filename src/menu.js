@@ -384,18 +384,18 @@ if (carnetExtranjeriaCheckbox) {
 }
 
 // Funciones de Overlay de Carga
-const loadingOverlay = document.getElementById('loadingOverlay');
-
 function showLoading() {
+  const loadingOverlay = document.getElementById('loadingOverlay');
   if (loadingOverlay) {
     loadingOverlay.style.display = 'flex';
     // Forzar reflow para animación
-    loadingOverlay.offsetHeight;
+    void loadingOverlay.offsetHeight;
     loadingOverlay.classList.add('active');
   }
 }
 
 function hideLoading() {
+  const loadingOverlay = document.getElementById('loadingOverlay');
   if (loadingOverlay) {
     loadingOverlay.classList.remove('active');
     setTimeout(() => {
@@ -1237,15 +1237,15 @@ function inicializarNavegacion() {
       navItems.forEach(n => n.classList.remove('active'));
       item.classList.add('active');
 
-      // 2. Mostrar vista correspondiente
       const targetId = item.getAttribute('data-target') || item.getAttribute('data-view');
       views.forEach(view => {
         if (view.id === targetId) {
-          view.style.display = 'block';
           view.classList.add('active');
+          // Limpiar inline style residual si lo hubiera
+          view.style.display = '';
         } else {
-          view.style.display = 'none';
           view.classList.remove('active');
+          view.style.display = '';
         }
       });
 

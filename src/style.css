@@ -789,6 +789,9 @@ body {
   flex-direction: column;
   min-width: 0;
   margin-left: 0;
+  height: 100vh;
+  overflow: hidden;
+  /* Fix global scroll so internal layers deal with it */
   transition: margin-left var(--transition-speed) ease;
 }
 
@@ -835,6 +838,8 @@ body {
   margin: var(--spacing-md);
   margin-bottom: 0;
   width: calc(100% - (var(--spacing-md) * 2));
+  flex-shrink: 0;
+  z-index: 10;
 }
 
 .header-left {
@@ -897,6 +902,14 @@ body {
   gap: var(--spacing-md);
 }
 
+.views-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: relative;
+}
+
 .user-info {
   color: var(--text-secondary);
   font-size: 0.95rem;
@@ -910,17 +923,19 @@ body {
   grid-template-columns: 400px 1fr;
   grid-template-rows: auto 1fr;
   gap: var(--spacing-md);
+  height: calc(100vh - 85px);
+  /* Restar aprox. la altura de main-header */
+  overflow: hidden;
+  /* Impide scroll en el contenedor padre */
 }
 
 .control-panel {
   grid-column: 1;
   grid-row: 1 / 3;
   padding: var(--spacing-lg);
-  height: calc(100vh - 120px);
+  height: 100%;
   min-width: 400px;
   overflow-y: auto;
-  position: sticky;
-  top: var(--spacing-md);
 }
 
 .control-panel::-webkit-scrollbar {
@@ -955,12 +970,22 @@ body {
   letter-spacing: 1px;
 }
 
+/* Right Column (stats + table) */
+.right-column {
+  grid-column: 2;
+  grid-row: 1 / 3;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+  min-height: 0;
+  overflow: hidden;
+}
+
 /* Stats Cards */
 .stats-container {
-  grid-column: 2;
-  grid-row: 1;
   display: flex;
   gap: var(--spacing-md);
+  flex-shrink: 0;
 }
 
 .stat-card {
@@ -1031,18 +1056,30 @@ body {
 
 /* Tabla */
 .table-container {
-  grid-column: 2;
-  grid-row: 2;
   padding: var(--spacing-lg);
   overflow: hidden;
   display: flex;
   flex-direction: column;
 }
 
+/* Solo en la vista de Registros: llenar espacio y habilitar scroll */
+.right-column>.table-container {
+  flex: 1;
+  min-height: 0;
+}
+
 .table-wrapper {
   flex: 1;
-  overflow: auto;
+  overflow-y: auto;
+  overflow-x: auto;
   margin-top: var(--spacing-md);
+  min-height: 0;
+  /* Clave para que flex + overflow funcionen correctamente */
+}
+
+/* Scrollbar horizontal */
+.table-wrapper::-webkit-scrollbar:horizontal {
+  height: 8px;
 }
 
 .table-wrapper::-webkit-scrollbar {
@@ -1072,6 +1109,15 @@ body {
   z-index: 10;
 }
 
+.data-table thead th {
+  background: linear-gradient(180deg, rgba(10, 14, 39, 0.98), rgba(10, 14, 39, 0.95));
+  background-color: #0b1130;
+}
+
+.table-wrapper::-webkit-scrollbar-thumb:hover {
+  background: #00b8d4;
+}
+
 .data-table th {
   background: rgba(0, 217, 255, 0.1);
   color: var(--primary-cyan);
@@ -1090,6 +1136,7 @@ body {
   padding: var(--spacing-sm);
   border-bottom: 1px solid rgba(0, 217, 255, 0.1);
   color: var(--text-secondary);
+  white-space: nowrap;
 }
 
 .data-table tbody tr {
@@ -1492,8 +1539,16 @@ body {
    DASHBOARD STYLES
    ======================================== */
 .view-section {
+  display: none;
   width: 100%;
   height: 100%;
+}
+
+.view-section.active {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow: hidden;
   animation: fadeIn 0.4s ease-out;
 }
 
@@ -1515,7 +1570,83 @@ body {
   gap: var(--spacing-lg);
   height: 100%;
   overflow-y: auto;
+  padding: var(--spacing-md);
   padding-right: 5px;
+}
+
+/* ---- Dashboard Table Section ---- */
+.dashboard-wrapper>.table-container {
+  flex: none;
+  min-height: auto;
+  overflow: visible;
+  margin-top: 0.5rem;
+  padding: var(--spacing-lg) var(--spacing-lg) var(--spacing-md);
+}
+
+.dashboard-wrapper>.table-container .table-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--spacing-md);
+  padding-bottom: var(--spacing-sm);
+  border-bottom: 2px solid rgba(0, 217, 255, 0.15);
+}
+
+.dashboard-wrapper>.table-container .table-header h3 {
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--primary-cyan);
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  position: relative;
+  padding-left: 1rem;
+}
+
+.dashboard-wrapper>.table-container .table-header h3::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 4px;
+  height: 100%;
+  background: var(--primary-cyan);
+  border-radius: 2px;
+  box-shadow: 0 0 8px var(--primary-cyan-glow);
+}
+
+.dashboard-wrapper>.table-container .table-wrapper {
+  max-height: 450px;
+  overflow-y: auto;
+  overflow-x: auto;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(0, 217, 255, 0.08);
+}
+
+.dashboard-wrapper>.table-container .table-wrapper::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.dashboard-wrapper>.table-container .table-wrapper::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 10px;
+}
+
+.dashboard-wrapper>.table-container .table-wrapper::-webkit-scrollbar-thumb {
+  background: var(--primary-cyan);
+  border-radius: 10px;
+}
+
+.dashboard-wrapper>.table-container .table-wrapper::-webkit-scrollbar-thumb:hover {
+  background: #00b8d4;
+}
+
+.dashboard-wrapper>.table-container .pagination-controls {
+  margin-top: var(--spacing-md);
+  padding-top: var(--spacing-md);
+  border-top: 1px solid rgba(0, 217, 255, 0.1);
 }
 
 /* Filters */
@@ -1634,7 +1765,7 @@ body {
     bottom: 0;
     background: rgba(8, 11, 28, 0.95);
     backdrop-filter: blur(10px);
-    z-index: 9999;
+    z-index: 99999;
     display: flex;
     justify-content: center;
     align-items: center;
@@ -1859,7 +1990,7 @@ body {
   display: flex;
   justify-content: center;
   align-items: center;
-  z-index: 10000;
+  z-index: 99999;
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.5s cubic-bezier(0.19, 1, 0.22, 1);
@@ -2142,9 +2273,9 @@ body.initial-load {
 }
 
 .btn-icon-only {
-  background: rgba(255, 255, 255, 0.05) !important;
-  border: 1px solid rgba(255, 255, 255, 0.1) !important;
-  color: #fff !important;
+  background: rgba(13, 17, 43, 0.6) !important;
+  border: 1px solid rgba(0, 217, 255, 0.2) !important;
+  color: var(--primary-cyan) !important;
   width: 36px !important;
   height: 36px !important;
   border-radius: 8px !important;
@@ -2159,15 +2290,20 @@ body.initial-load {
 .btn-icon-only:hover {
   background: rgba(0, 217, 255, 0.15) !important;
   border-color: var(--primary-cyan) !important;
-  color: var(--primary-cyan) !important;
+  color: #fff !important;
   transform: translateY(-2px) scale(1.05);
   box-shadow: 0 0 15px var(--primary-cyan-glow);
+}
+
+.btn-icon-only.delete {
+  border-color: rgba(255, 51, 102, 0.2) !important;
+  color: var(--accent-red) !important;
 }
 
 .btn-icon-only.delete:hover {
   background: rgba(255, 51, 102, 0.15) !important;
   border-color: var(--accent-red) !important;
-  color: var(--accent-red) !important;
+  color: #fff !important;
   box-shadow: 0 0 15px var(--accent-red-glow);
 }
 
@@ -2182,19 +2318,24 @@ body.initial-load {
 }
 
 .management-wrapper {
-  padding: var(--spacing-md);
+  padding: 1.5rem;
   height: 100%;
   display: flex;
   flex-direction: column;
   gap: var(--spacing-lg);
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .management-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: var(--spacing-md) var(--spacing-lg);
-  border-radius: var(--radius-md);
+  flex-wrap: wrap;
+  gap: 1rem;
+  padding: 1.5rem;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 12px;
   border-left: 4px solid var(--primary-cyan);
 }
 
